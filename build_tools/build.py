@@ -32,6 +32,7 @@ StringStruct('ProductName','GhostOS'), StringStruct('ProductVersion','{version}'
 StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('Translation',[1033,1200])])])''', encoding='utf-8')
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
                '--name', 'GhostOS', '--version-file', str(version_info),
+               '--additional-hooks-dir', str(ROOT / 'build_tools' / 'hooks'),
                '--manifest', str(ROOT / 'build_tools' / 'app.manifest'),
                '--console']
     if not args.console:
