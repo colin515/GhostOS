@@ -73,6 +73,9 @@ class WorkerSafety:
             import ctypes
             ctypes.windll.user32.GetForegroundWindow.restype = ctypes.c_void_p
             target_window = ctypes.windll.user32.GetForegroundWindow()
+            from agent.window_focus import is_agent_window
+            if is_agent_window(target_window):
+                raise RuntimeError('GhostOS became foreground before approval; recover the external target and re-observe')
         self.events.put({'kind': 'APPROVAL', 'request_id': request, 'action': action.model_dump(),
                          'target_window': target_window})
         deadline = time.monotonic() + self.settings.approval_timeout

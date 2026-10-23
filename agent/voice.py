@@ -64,6 +64,8 @@ def record_and_transcribe(settings, progress=print, level=lambda value: None, ca
     import numpy as np
     import sounddevice as sd
     import webrtcvad
+    import onnxruntime
+    onnxruntime.disable_telemetry_events()  # Includes the Whisper VAD inference session.
     cancel = cancel or threading.Event()
     if not (settings.data_dir / 'voice-model').is_dir():
         raise RuntimeError('Download the voice model in Settings → Model and voice setup first')

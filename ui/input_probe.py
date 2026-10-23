@@ -1,6 +1,6 @@
 """Explicit CI smoke test on a disposable window; restores cursor and previous focus."""
 import threading
-from PyQt6.QtCore import QTimer, QPoint
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
 from agent.mouse import MouseDriver, WinMouse
 from agent.window_focus import focus_window
@@ -16,7 +16,11 @@ def run_probe():
     errors, seen = [], []
     class Target(QWidget):
         def mousePressEvent(self, event):
-            seen.append(event.button().name)
+            seen.append(event.button().value)
+        def mouseDoubleClickEvent(self, event):
+            seen.append('double')
+        def wheelEvent(self, event):
+            seen.append('scroll')
         def mouseMoveEvent(self, event):
             if event.buttons():
                 seen.append('drag')
@@ -28,19 +32,18 @@ def run_probe():
     def verify():
         try:
             focus_window(int(target.winId()))
-            point = target.mapToGlobal(QPoint(160, 100))
-            # Qt coordinates are logical. The app is Per-Monitor-V2 aware.
             ratio = target.devicePixelRatioF()
-            origin = target.mapToGlobal(QPoint(0, 0))
-            x, y = round(origin.x() * ratio + (point.x() - origin.x()) * ratio), round(origin.y() * ratio + (point.y() - origin.y()) * ratio)
+            x, y = win32gui.ClientToScreen(int(target.winId()), (round(160 * ratio), round(100 * ratio)))
             for button in ('left', 'right', 'middle', 'x1', 'x2'):
                 mouse.click(x, y, button, duration=0.05)
                 app.processEvents()
             mouse.drag(x, y, x + 70, y + 30, duration=0.15)
             app.processEvents()
+            mouse.click(x, y, 'left', clicks=2, duration=0.05)
+            app.processEvents()
             mouse.scroll(-1)
             app.processEvents()
-            required = {'LeftButton', 'RightButton', 'MiddleButton', 'BackButton', 'ForwardButton'}
+            required = {1, 2, 4, 8, 16, 'drag', 'double', 'scroll'}
             if not required.issubset(seen):
                 raise RuntimeError(f'Missing native input events: {required - set(seen)}; received {seen}')
         except Exception as exc:

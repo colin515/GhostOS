@@ -111,4 +111,9 @@ jobs:
           TAG: v${{ needs.build.outputs.version }}
           TARGET_SHA: ${{ github.sha }}
         run: |
+          current=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
+          if [ "$current" != "$TARGET_SHA" ]; then
+            echo "Superseded by a newer main commit; publish the newer build instead."
+            exit 1
+          fi
           gh release create "$TAG" release/* --target "$TARGET_SHA" --title "GhostOS $TAG" --generate-notes --notes "Install GhostOS by downloading and running GhostOS_Installer_$TAG.exe. Python is bundled; install Ollama separately when prompted on first launch. Versioned documentation is attached as a ZIP and available at https://github.com/$GH_REPO/tree/$TAG/docs . Installer is unsigned; see installation.md."

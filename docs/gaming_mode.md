@@ -1,4 +1,4 @@
-# Gaming mode · GhostOS 1.2.1
+# Gaming mode · GhostOS 1.2.2
 
 Launch `python main.py --game --desktop`, or select Game Mode in Settings before
 starting a run. After submitting a goal, focus your game during the three-second

@@ -1,4 +1,4 @@
-# Installation · GhostOS 1.2.1
+# Installation · GhostOS 1.2.2
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ only. Internet is used to install packages and download models; subsequent model
 inference, screenshots and speech transcription stay local. Browser tasks use
 the network addresses requested by the user.
 
-Download **GhostOS_Installer_v1.2.1.exe** from the
+Download **GhostOS_Installer_v1.2.2.exe** from the
 [latest GitHub Release](https://github.com/colin515/GhostOS/releases/latest), run
 it, and open GhostOS from the Start Menu. Choose the `.exe` under **Assets**;
 the source ZIP is for developers. No Python installation is needed. The
