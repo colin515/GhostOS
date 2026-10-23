@@ -105,3 +105,59 @@ def test_upstream_loop_detection_is_bounded_without_a_step_limit():
         guard.record_action('mouse_move', {'x':index, 'y':0})
     assert len(guard._visited_states) <= 256
     assert len(guard._hashes) <= 15
+
+
+
+def test_action_required_also_restricts_non_tool_model_schema(planner):
+    brain, frame, calls, responses = planner
+    brain.tools_supported = False
+    responses.append(LLMEvent(type=LLMEventType.TEXT, usage=TokenUsage(), content=json.dumps({
+        'status':'CONTINUE', 'summary':'Navigate', 'action':{'kind':'browser_new_tab', 'args':{}}})))
+    assert brain.next('Open a new tab', frame, [], feedback='DECISION_ACTION_REQUIRED').action
+    schema = calls[1][1]['structured_output'].model_json_schema()
+    assert schema['properties']['status']['const'] == 'CONTINUE'
+    assert 'action' in schema['required']
+
+
+def test_actual_sdk_ollama_transport_uses_only_loopback_and_latest_image(monkeypatch, tmp_path):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    import threading
+    received = []
+    for key in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy'):
+        monkeypatch.delenv(key, raising=False)
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            received.append((self.path, data))
+            if self.path == '/api/show':
+                reply = {'capabilities':['vision','tools']}
+            else:
+                reply = {'model':'local-test', 'done':True, 'message':{'role':'assistant','content':'',
+                    'tool_calls':[{'function':{'name':'browser_new_tab','arguments':{}}}]}}
+            self.send_response(200)
+            self.send_header('Content-Type','application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(reply).encode())
+        def log_message(self, *args):
+            pass
+    monkeypatch.setattr(engine, 'local_desktop', lambda:None)
+    server = ThreadingHTTPServer(('127.0.0.1',0), Handler)
+    thread = threading.Thread(target=server.serve_forever,daemon=True)
+    thread.start()
+    brain = None
+    try:
+        brain = engine.WindowsUseBrain(Settings(data_dir=tmp_path, model='local-test',
+                            ollama_host=f'http://127.0.0.1:{server.server_port}'))
+        decision = brain.next('Open a new tab',Frame(Image.new('RGB',(100,50)),(100,50)),[])
+        assert decision.action.kind == 'browser_new_tab'
+        assert [path for path, _ in received] == ['/api/show','/api/chat']
+        request = received[-1][1]
+        assert len(request['messages'][-1]['images']) == 1
+        assert request['tools'] and not request.get('stream')
+        assert request['options']['num_ctx'] == 8192
+    finally:
+        if brain:
+            brain.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)

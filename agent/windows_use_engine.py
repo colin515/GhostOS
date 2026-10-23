@@ -2,9 +2,15 @@
 from __future__ import annotations
 import json
 import os
+from typing import Literal
 from pydantic import BaseModel, Field
 from agent.brain import Brain, Context, SYSTEM, ensure_local_vision, local_model_metadata
 from agent.models import Action, Decision, ARG_TYPES
+
+
+class ActionDecision(Decision):
+    status: Literal['CONTINUE']
+    action: Action
 
 
 class Finish(BaseModel):
@@ -132,7 +138,7 @@ class WindowsUseBrain:
             action = Action(kind=call.name, args=call.params)
             decision = Decision(status='CONTINUE', summary='Next: ' + action.kind.replace('_', ' '), action=action)
         else:
-            response = self.llm.invoke(messages, structured_output=Decision)
+            response = self.llm.invoke(messages, structured_output=ActionDecision if 'DECISION_ACTION_REQUIRED' in feedback else Decision)
             decision = Decision.model_validate_json(response.content)
             if 'DECISION_ACTION_REQUIRED' in feedback and decision.status != 'CONTINUE':
                 raise ValueError('Completion is not yet verified; choose an action')

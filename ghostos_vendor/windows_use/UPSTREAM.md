@@ -17,6 +17,7 @@ avoids installing unrelated cloud SDKs. Source modifications:
 - imports are namespaced under `ghostos_vendor.windows_use`;
 - package initializers expose only included local components;
 - Ollama clients ignore proxy environment variables for loopback requests;
+- optional Ollama token counters normalize to zero when absent;
 - visited-state memory is bounded for GhostOS's unlimited execution;
 - `agent/windows_use_engine.py` integrates the SDK with GhostOS's single-image,
   bounded-context planning loop, strict action schemas and permission controller.

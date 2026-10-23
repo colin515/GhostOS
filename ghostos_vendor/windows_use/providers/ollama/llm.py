@@ -124,9 +124,9 @@ class ChatOllama(BaseChatLLM):
             thinking_tokens = max(1, len(thinking) // 4)
 
         usage = TokenUsage(
-            prompt_tokens=response.get("prompt_eval_count", 0),
-            completion_tokens=response.get("eval_count", 0),
-            total_tokens=response.get("prompt_eval_count", 0) + response.get("eval_count", 0),
+            prompt_tokens=(response.get("prompt_eval_count") or 0),
+            completion_tokens=(response.get("eval_count") or 0),
+            total_tokens=(response.get("prompt_eval_count") or 0) + (response.get("eval_count") or 0),
             thinking_tokens=thinking_tokens,
         )
 
@@ -202,10 +202,10 @@ class ChatOllama(BaseChatLLM):
                 parsed = structured_output.model_validate_json(response["message"]["content"])
                 content = parsed.model_dump() if hasattr(parsed, "model_dump") else str(parsed)
                 usage = TokenUsage(
-                    prompt_tokens=response.get("prompt_eval_count", 0),
-                    completion_tokens=response.get("eval_count", 0),
-                    total_tokens=response.get("prompt_eval_count", 0)
-                    + response.get("eval_count", 0),
+                    prompt_tokens=(response.get("prompt_eval_count") or 0),
+                    completion_tokens=(response.get("eval_count") or 0),
+                    total_tokens=(response.get("prompt_eval_count") or 0)
+                    + (response.get("eval_count") or 0),
                     thinking_tokens=None,
                 )
                 return LLMEvent(
@@ -262,10 +262,10 @@ class ChatOllama(BaseChatLLM):
                 parsed = structured_output.model_validate_json(response["message"]["content"])
                 content = parsed.model_dump() if hasattr(parsed, "model_dump") else parsed
                 usage = TokenUsage(
-                    prompt_tokens=response.get("prompt_eval_count", 0),
-                    completion_tokens=response.get("eval_count", 0),
-                    total_tokens=response.get("prompt_eval_count", 0)
-                    + response.get("eval_count", 0),
+                    prompt_tokens=(response.get("prompt_eval_count") or 0),
+                    completion_tokens=(response.get("eval_count") or 0),
+                    total_tokens=(response.get("prompt_eval_count") or 0)
+                    + (response.get("eval_count") or 0),
                     thinking_tokens=None,
                 )
                 return LLMEvent(

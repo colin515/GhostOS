@@ -122,7 +122,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                     except Exception as exc:
                         inference_errors += 1
                         emit('ERROR', message=f'Local model response failed (attempt {inference_errors}): {type(exc).__name__}: {exc}')
-                        feedback = 'Return one compact schema-valid decision. The last response was invalid or unavailable.' + recovery.context()
+                        feedback = ('DECISION_ACTION_REQUIRED. ' if 'DECISION_ACTION_REQUIRED' in feedback else '') + 'Return one compact schema-valid decision. The last response was invalid or unavailable.' + recovery.context()
                         if stop.wait(min(30, 2 ** min(inference_errors, 5))):
                             safety.check()
                         continue
