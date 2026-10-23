@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.3.1
+# Architecture · GhostOS 1.3.2
 
 The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
 LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,
@@ -117,6 +117,22 @@ check must reassess the whole original goal. After a premature terminal verdict,
 the next inference schema requires an action. General task completion still
 relies on the local model's visual/DOM assessment and is not guaranteed.
 
+`task_progress.py` retains explicit sequential clauses as pending steps. Only
+completion of the final step emits terminal STATUS; intermediate steps emit
+TASK_PROGRESS and preserve the full original request. `browser_media.py` checks
+HTML5 media state and advancing playback time through CDP, or the actual YouTube
+accessible Play/Pause control through native mouse input. Play is idempotent.
+Playback success claims are checked against fresh player state, including when
+the model claims completion after another action. Consent/login/buffering and
+unknown controls remain pending rather than being treated as success.
+
+`model_protocol.py` supplies a generation schema with per-action argument types
+and separate CONTINUE/terminal branches. The runtime validator remains strict.
+A missing action causes a bounded correction request, never an inferred mouse
+click or script from prose. `model_setup.py` exercises the selected installed
+planner using an inert wait request and synthetic image before saving setup;
+it never creates a Controller or reads the actual desktop.
+
 ## Responsiveness and local inference
 
 Process startup, commands, recognition, speech and frame decoding stay outside
@@ -127,6 +143,12 @@ compression without a second inference. Default images are 1024px wide, with a
 512-token response budget. UIA provider calls can stall inside a third-party
 provider; the process supervisor and emergency brake can terminate that worker.
 An optional runtime limit can additionally bound unattended runs.
+
+`context_budget.py` trims history, browser inventories and accessibility nodes
+according to the context budget, reserving space for system/tool schemas, image
+tokens and output. It preserves the full goal and latest outcome rather than
+letting oversized trees silently crowd them out. Thinking-capable models receive
+`think:false` when they advertise optional thinking; public assessments stay short.
 
 THOUGHT/PLAN events are brief public progress assessments and intended actions,
 not hidden chain-of-thought. Page text and command output are untrusted data.

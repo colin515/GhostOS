@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QLabel, QPushButton,
 from ui.tasks import Task
 from agent.hardware import hardware_report, ollama_status, benchmark_model
 from setup import MODELS, download_model, download_voice
+from agent.model_setup import verify_model
 
 class SetupWizard(QDialog):
     def __init__(self, runtime, parent=None):
@@ -16,7 +17,7 @@ class SetupWizard(QDialog):
         title = QLabel('Set up your local agent')
         title.setObjectName('hero')
         layout.addWidget(title)
-        intro = QLabel('Choose a vision model for this PC. Downloads start only when you press Download.\nOllama runs separately; all agent inference uses its local API.')
+        intro = QLabel('For an 8 GB GPU, use qwen3.5:4b; qwen3-vl:4b is an alternative. Update Ollama first.\nDownload, verify the agent protocol, then save. All inference stays local.')
         intro.setWordWrap(True)
         layout.addWidget(intro)
         link = QLabel('<a href="https://ollama.com/download/windows">Download Ollama for Windows ↗</a>')
@@ -38,6 +39,8 @@ class SetupWizard(QDialog):
         self.scan = QPushButton('Scan again')
         self.pull = QPushButton('Download selected model')
         self.benchmark = QPushButton('Benchmark selected model')
+        self.verify = QPushButton('Verify agent model · no desktop input')
+        layout.addWidget(self.verify)
         layout.addWidget(self.benchmark)
         self.done = QPushButton('Save and continue')
         buttons.addWidget(self.scan)
@@ -48,10 +51,11 @@ class SetupWizard(QDialog):
         self.pull.clicked.connect(self.download)
         self.done.clicked.connect(self.save)
         self.benchmark.clicked.connect(self.run_benchmark)
+        self.verify.clicked.connect(self.run_verification)
         self.inspect()
 
     def busy(self, yes):
-        for button in (self.scan, self.pull, self.done, self.benchmark):
+        for button in (self.scan, self.pull, self.done, self.benchmark, self.verify):
             button.setEnabled(not yes)
         self.model.setEnabled(not yes)
         self.voice.setEnabled(not yes)
@@ -94,9 +98,18 @@ class SetupWizard(QDialog):
                 download_voice(settings, progress)
             return voice
         def complete(voice_ready):
-            settings.voice_enabled = voice_ready
-            self.note.setText('Downloads complete. Click Save and continue.')
+            if voice_ready:
+                settings.voice_enabled = True
+            self.note.setText('Download complete. Verify agent model, or Save and continue to verify and activate it.')
         self.launch_task(work, complete)
+
+    def run_verification(self):
+        model = self.model.currentText().strip()
+        def complete(report):
+            import json
+            self.report.setPlainText(json.dumps(report, indent=2))
+            self.note.setText('Agent protocol passed. Click Save and continue to use this model.')
+        self.launch_task(lambda progress: verify_model(self.runtime.settings, model, progress), complete)
 
     def run_benchmark(self):
         model = self.model.currentText().strip()
@@ -114,6 +127,7 @@ class SetupWizard(QDialog):
                 raise ValueError('Start Ollama and download the selected model first (use its exact installed tag).')
             from agent.brain import ensure_local_vision, local_model_metadata
             ensure_local_vision(local_model_metadata(self.runtime.settings.ollama_host, model))
+            verify_model(self.runtime.settings, model, progress)
             return model
         def complete(model):
             self.runtime.settings.model = model

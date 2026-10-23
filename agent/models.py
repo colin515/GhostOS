@@ -83,6 +83,9 @@ class Locator(Args):
 class Fill(Locator):
     value: str = Field(max_length=16000)
 
+class Media(Args):
+    operation: Literal['play', 'pause', 'state']
+
 class Move(Args):
     dx: int = Field(ge=-3000, le=3000)
     dy: int = Field(ge=-3000, le=3000)
@@ -98,14 +101,14 @@ class Template(Args):
 ARG_TYPES = {
     'mouse_move': Cursor, 'drag': Drag, 'scroll': Scroll, 'hotkey': Keys, 'type_text': Text, 'click': Click, 'shell': Shell, 'wait': Delay,
     'open_app': App, 'ensure_app': EnsureApp, 'app_list': AppQuery, 'focus_window': WindowHandle, 'ui_click': Element, 'browser_navigate': URL,
-    'browser_click': Locator, 'browser_fill': Fill, 'browser_snapshot': Empty,
+    'browser_click': Locator, 'browser_fill': Fill, 'browser_snapshot': Empty, 'browser_media': Media,
     'browser_open': BrowserOpen, 'browser_new_tab': BrowserTab, 'browser_tabs': Empty, 'browser_switch_tab': TabId,
     'game_move': Move, 'game_key': GameKey, 'game_click': Empty,
     'template_click': Template, 'focus': Empty,
 }
 ActionKind = Literal[
     'mouse_move', 'drag', 'scroll', 'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click', 'app_list', 'focus_window',
-    'browser_navigate', 'browser_click', 'browser_fill', 'browser_snapshot',
+    'browser_navigate', 'browser_click', 'browser_fill', 'browser_snapshot', 'browser_media',
     'browser_open', 'browser_new_tab', 'browser_tabs', 'browser_switch_tab',
     'game_move', 'game_key', 'game_click', 'template_click', 'focus', 'ensure_app',
 ]
@@ -140,6 +143,7 @@ browser_click {selector:"role=button[name=Submit]"}; browser_fill {selector:"inp
 browser_open {url:"https://www.netflix.com/",new_tab:false,backend:"auto"} reuses a matching tab or navigates directly;
 browser_new_tab {backend:"auto"} actually creates and verifies a new tab;
 browser_tabs {} lists CDP tab IDs, titles and URLs; browser_switch_tab {tab_id:0} activates a listed tab;
+browser_media {operation:"play"|"pause"|"state"} controls the current HTML5 video/audio and verifies its state; opening YouTube is not evidence of playback;
 browser_snapshot {}; game_move {dx:50,dy:0}; game_key {key:"w",duration:0.2};
 game_click {}; template_click {name:"target.png",threshold:0.85}.
 Coordinates are pixels in the latest resized screenshot. UIA IDs only apply to current tree.

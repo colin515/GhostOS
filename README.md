@@ -50,22 +50,33 @@ Microsoft Edge using a separate local profile by default.
 
 ### Ollama configuration
 
-Use an up-to-date Ollama release. **The valid model tag is `qwen2.5vl`, without a
-hyphen.** All inference goes to `http://127.0.0.1:11434`. No cloud API key is needed.
+Use an up-to-date Ollama release. All inference goes to `http://127.0.0.1:11434`.
+No cloud API key is needed. For an **8 GB GPU**, open the AI gear → **Check / upgrade
+local model and voice**, download **`qwen3.5:4b`**, and select **Save and continue**.
+Saving verifies the actual agent protocol using an inert synthetic image; no PC input
+is sent. `qwen3-vl:4b` is an alternative if the newer model cannot load.
 
 | Dedicated GPU memory | Default recommendation | Practical limitation |
 | --- | --- | --- |
 | At least 24 GB plus 32 GB system RAM | `qwen2.5vl:32b` | ~21 GB weights, plus runtime/context memory |
-| 8–23 GB | `qwen2.5vl:7b` | ~6 GB weights; leave memory for Windows/game |
-| Below 8 GB or unknown GPU memory | `llava:7b` | CPU or partial GPU offload; RAM and latency matter |
+| 12–23 GB | `qwen3-vl:8b` | ~6.2 GB weights plus vision/context memory |
+| 6–11 GB, including 8 GB GPUs | `qwen3.5:4b` | Leaves more memory headroom than larger models; verify GPU offload |
+| Below 6 GB or unknown GPU memory | `qwen3.5:2b` | CPU or partial GPU offload; RAM and latency matter |
 
-`llama3.2-vision:11b` and `qwen2.5vl:3b` are selectable alternatives. A 16 GB GPU
+Existing model selections remain saved when updating the app; models are separate
+downloads, not bundled into the installer. `qwen2.5vl` tags have no hyphen; the newer
+`qwen3-vl` tags do. `llama3.2-vision:11b` and `qwen2.5vl:3b` remain selectable. A 16 GB GPU
 is offered 32B as an optional choice, rather than being assumed to fit it fully.
 The hardware inventory is a model-fit estimate. After downloading a model, click
 **Benchmark selected model** in setup to measure local vision inference, model
 load time, output tokens per second, RAM availability and GPU memory use. The
 benchmark uses a synthetic image and does not capture your desktop. Actual
 workflow latency depends on screen complexity and context size. Model licences remain separate.
+
+Explicit sequential requests keep separate pending steps. For example, “open the
+existing YouTube page and play its video” verifies navigation, then playback,
+before finishing. Playback reads state before acting so repeating Play cannot
+pause a video that is already playing. See [model setup and multi-step control](docs/model_setup.md).
 
 ### Desktop and phone dashboard
 

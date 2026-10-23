@@ -72,6 +72,15 @@ def test_existing_non_tool_vision_models_use_sdk_structured_path(planner):
     assert 'structured_output' in calls[1][1] and 'tools' not in calls[1][1]
 
 
+def test_known_tool_with_bad_argument_types_is_repaired_before_execution(planner):
+    brain, frame, calls, responses = planner
+    responses.append(response('wait',{'seconds':'0'}))
+    responses.append(LLMEvent(type=LLMEventType.TEXT,usage=TokenUsage(),content=json.dumps({
+        'status':'CONTINUE','summary':'Wait','action':{'kind':'wait','args':{'seconds':0}}})))
+    assert brain.next('Wait',frame,[]).action.args['seconds'] == 0
+    assert 'structured_output' in calls[2][1]
+
+
 def test_sdk_coordinates_are_scaled_once_and_foreign_screen_targets_excluded(planner):
     brain, frame, _, _ = planner
     node = lambda x,y: SimpleNamespace(center=SimpleNamespace(x=x,y=y),name='Button',control_type='ButtonControl',window_name='App')

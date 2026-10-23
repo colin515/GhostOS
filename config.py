@@ -33,7 +33,7 @@ def dpi_scale() -> float:
 class Settings:
     computer_use_engine: str = 'windows_use'
     tier: int = 2
-    model: str = 'qwen2.5vl:7b'
+    model: str = 'qwen3.5:4b'
     ollama_host: str = 'http://127.0.0.1:11434'
     web_host: str = '0.0.0.0'
     web_port: int = 8000

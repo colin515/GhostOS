@@ -144,6 +144,13 @@ class WebEngine:
             self.page.bring_to_front()
         elif action.kind == 'browser_fill':
             self.page.locator(a['selector']).fill(a['value'])
+        elif action.kind == 'browser_media':
+            from agent.browser_media import cdp_media
+            try:
+                evidence = cdp_media(self.page, a['operation'])
+            except Exception as exc:
+                evidence = {'operation':a['operation'], 'verified':False,
+                            'message':'Playback could not be verified. Inspect the current player controls: ' + str(exc)[:600]}
         elif action.kind == 'browser_click':
             # A click may open a new tab. Track it instead of continuing on the old page.
             before = set(self.context.pages)

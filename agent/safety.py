@@ -19,7 +19,7 @@ def requires_approval(action: Action, tier: int) -> bool:
         return False
     if action.kind == 'ensure_app':
         return action.args['strategy'] == 'search'
-    if action.kind in ('wait', 'focus', 'focus_window', 'app_list', 'mouse_move', 'scroll', 'browser_navigate', 'browser_snapshot', 'browser_open', 'browser_new_tab', 'browser_tabs', 'browser_switch_tab', 'game_move'):
+    if action.kind in ('wait', 'focus', 'focus_window', 'app_list', 'mouse_move', 'scroll', 'browser_navigate', 'browser_snapshot', 'browser_open', 'browser_new_tab', 'browser_tabs', 'browser_switch_tab', 'browser_media', 'game_move'):
         return False
     if action.kind == 'hotkey':
         return tuple(k.lower() for k in action.args['keys']) not in NAVIGATION_KEYS

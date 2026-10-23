@@ -45,12 +45,15 @@ def hardware_report():
     if vram >= 24 and report['ram_gb'] >= 32:
         report['recommended_model'] = 'qwen2.5vl:32b'
         report['model_note'] = '32B weights are about 21 GB; context and graphics need extra memory.'
-    elif vram >= 8:
-        report['recommended_model'] = 'qwen2.5vl:7b'
-        report['model_note'] = '7B weights are about 6 GB. 32B on 16 GB requires CPU offload and can be slow.'
+    elif vram >= 12:
+        report['recommended_model'] = 'qwen3-vl:8b'
+        report['model_note'] = '8B weights are about 6.2 GB; context, vision and Windows use additional memory.'
+    elif vram >= 6:
+        report['recommended_model'] = 'qwen3.5:4b'
+        report['model_note'] = 'Recommended for 8 GB GPUs: newer 4B local vision/tool model with memory headroom. Update Ollama first; qwen3-vl:4b is an alternative. Verify and benchmark after downloading.'
     else:
-        report['recommended_model'] = 'llava:7b'
-        report['model_note'] = 'CPU/partial GPU fallback; allow at least 8–16 GB free RAM. A 3B model may work better on small PCs.'
+        report['recommended_model'] = 'qwen3.5:2b'
+        report['model_note'] = 'Small local vision model for limited or unknown VRAM; CPU offload can still be slow. Update Ollama and verify actual GPU use.'
     return report
 
 
@@ -60,7 +63,13 @@ def ollama_status(host='http://127.0.0.1:11434'):
         client = ollama.Client(host=host, timeout=5, trust_env=False)
         names = [item.model for item in client.list().models]
         loaded = [{'model': model.model, 'vram_bytes': model.size_vram} for model in client.ps().models]
-        return {'reachable': True, 'installed_models': names, 'loaded_models': loaded}
+        try:
+            from urllib.request import build_opener, ProxyHandler
+            with build_opener(ProxyHandler({})).open(host.rstrip('/') + '/api/version', timeout=5) as response:
+                version = json.load(response).get('version', 'unknown')
+        except Exception:
+            version = 'unknown; update Ollama if a new model cannot load'
+        return {'reachable': True, 'version': version, 'installed_models': names, 'loaded_models': loaded}
     except Exception as exc:
         return {'reachable': False, 'installed_models': [], 'error': str(exc)}
 
@@ -68,10 +77,12 @@ def ollama_status(host='http://127.0.0.1:11434'):
 def benchmark_model(settings, model, progress=print):
     """Explicit local inference benchmark using a synthetic image, never the desktop."""
     from agent.brain import ensure_local_vision, local_model_metadata
+    from agent.model_protocol import thinking_option
     if not model.strip() or model.lower().endswith('cloud'):
         raise ValueError('Select an installed local vision model')
     progress('Checking that the selected model is local and supports vision…')
-    ensure_local_vision(local_model_metadata(settings.ollama_host, model))
+    metadata = local_model_metadata(settings.ollama_host, model)
+    ensure_local_vision(metadata)
     import io
     import ollama
     import psutil
@@ -86,6 +97,7 @@ def benchmark_model(settings, model, progress=print):
     started = time.perf_counter()
     result = client.generate(model=model, prompt='Describe this test image in one short sentence.',
                              images=[image.getvalue()], stream=False, keep_alive='3m',
+                             **thinking_option(metadata),
                              options={'temperature': 0, 'num_ctx': 2048, 'num_predict': 24})
     elapsed = time.perf_counter() - started
     tokens = result.eval_count or 0

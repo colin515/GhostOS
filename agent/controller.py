@@ -19,6 +19,7 @@ class Controller:
         self.mouse = None
         self.frame = None
         self.process = None
+        self.browser_explicit = False
 
     def execute(self, action: Action):
         self.safety.authorize(action)
@@ -127,12 +128,33 @@ class Controller:
 
     def native_browser(self):
         from agent.native_browser import NativeBrowser
-        return NativeBrowser(self.settings, self.safety.stop, self.type_unicode)
+        browser = NativeBrowser(self.settings, self.safety.stop, self.type_unicode)
+        if os.name == 'nt' and not self.browser_explicit and not self.settings.cdp_url:
+            # "the current YouTube page" belongs to the foreground browser, which
+            # can differ from the configured browser used to create new sessions.
+            try:
+                import psutil
+                import win32gui
+                import win32process
+                hwnd = win32gui.GetForegroundWindow()
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                executable = psutil.Process(pid).name().lower()
+                if executable in ('chrome.exe', 'msedge.exe'):
+                    browser.app = 'chrome' if executable == 'chrome.exe' else 'edge'
+            except (OSError, psutil.Error):
+                pass
+        return browser
 
     def browser_action(self, action):
         kind, a = action.kind, action.args
         navigation = kind in ('browser_open', 'browser_navigate', 'browser_new_tab')
         backend = a.get('backend', 'auto')
+        if kind == 'browser_media' and not self.web.page and not getattr(self.settings, 'cdp_url', ''):
+            native = self.native_browser()
+            if native.apps.windows(native.app):
+                from agent.browser_media import native_media
+                self.web.native_fallback = True
+                return native_media(native, a['operation'])
         if navigation and backend == 'native':
             result = self.native_browser().open(a.get('url', ''), a.get('new_tab', kind == 'browser_new_tab'))
             self.web.native_fallback = True
@@ -160,6 +182,9 @@ class Controller:
             except Exception:
                 pass  # UIA unavailable: CDP still provides deterministic URL navigation.
         if self.web.native_fallback and backend != 'cdp':
+            if kind == 'browser_media':
+                from agent.browser_media import native_media
+                return native_media(self.native_browser(), a['operation'])
             if navigation:
                 return self.native_browser().open(a.get('url', ''), a.get('new_tab', kind == 'browser_new_tab'))
             if kind in ('browser_snapshot', 'browser_tabs'):

@@ -127,7 +127,7 @@ class SettingsView(QDialog):
         body_layout.addWidget(web)
         for widget in (label, token, show, web):
             widget.setVisible(section != 'ai')
-        setup = QPushButton('Model and voice setup')
+        setup = QPushButton('Check / upgrade local model and voice')
         setup.clicked.connect(self.open_setup)
         setup.setEnabled(not runtime.running)
         body_layout.addWidget(setup)

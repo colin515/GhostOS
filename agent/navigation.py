@@ -76,7 +76,7 @@ class Navigation:
         from agent.windows_apps import ALIASES
         for alias in sorted(ALIASES, key=len, reverse=True):
             remaining = re.sub(r'\b' + re.escape(alias) + r'\b', ' ', remaining)
-        allowed = set('i would like want need you to just please could can will okay ok open launch start go navigate visit switch show access bring up a an the in on into of for me my and then website site webpage page home homepage new another browser tab window app application it now thanks thank'.split())
+        allowed = set('i would like want need you to just please could can will okay ok open launch start go navigate visit switch show access bring up a an the in on into of for me my and then website site webpage page home homepage new another browser tab window app application it now thanks thank opened existing already running currently active displayed'.split())
         words = re.findall(r"[a-z0-9]+(?:'[a-z]+)?", remaining)
         task.simple = bool(words) and all(word in allowed for word in words)
         return task

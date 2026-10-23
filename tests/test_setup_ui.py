@@ -21,6 +21,7 @@ def spin_until(app, predicate, timeout=3):
 
 def test_setup_save_closes_after_background_task(monkeypatch, tmp_path):
     import ui.setup_wizard as wizard
+    monkeypatch.setattr(wizard, 'verify_model', lambda *args: {'agent_protocol': 'passed'})
     monkeypatch.setattr('agent.brain.local_model_metadata', lambda host, model: {'capabilities': ['vision']})
     monkeypatch.setattr(wizard, 'hardware_report', lambda: {'recommended_model': 'qwen2.5vl:7b', 'model_note': 'test'})
     monkeypatch.setattr(wizard, 'ollama_status', lambda host: {'reachable': True, 'installed_models': ['qwen2.5vl:7b']})
@@ -62,4 +63,23 @@ def test_setup_benchmark_is_available_and_runs_in_background(monkeypatch, tmp_pa
     dialog.benchmark.click()
     spin_until(app, lambda: dialog.done.isEnabled() and 'tokens_per_second' in dialog.report.toPlainText())
     assert not runtime.settings.setup_complete
+    dialog.reject()
+
+
+def test_setup_never_activates_a_model_that_fails_agent_verification(monkeypatch, tmp_path):
+    import ui.setup_wizard as wizard
+    monkeypatch.setattr(wizard,'hardware_report',lambda:{'recommended_model':'qwen3.5:4b','model_note':'8 GB profile'})
+    monkeypatch.setattr(wizard,'ollama_status',lambda host:{'reachable':True,'installed_models':['qwen3.5:4b']})
+    monkeypatch.setattr('agent.brain.local_model_metadata',lambda *a:{'capabilities':['vision']})
+    def fail(*args):
+        raise ValueError('Agent protocol test failed')
+    monkeypatch.setattr(wizard,'verify_model',fail)
+    app = QApplication.instance() or QApplication([])
+    runtime = SimpleNamespace(settings=Settings(data_dir=tmp_path),local_ip='127.0.0.1')
+    dialog = wizard.SetupWizard(runtime)
+    spin_until(app,lambda:dialog.done.isEnabled())
+    dialog.save()
+    spin_until(app,lambda:dialog.done.isEnabled() and 'protocol test failed' in dialog.note.text())
+    assert not runtime.settings.setup_complete
+    assert not (tmp_path/'settings.json').exists()
     dialog.reject()

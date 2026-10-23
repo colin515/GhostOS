@@ -254,7 +254,7 @@ class MainWindow(QMainWindow):
                 finished = False
                 self.hide_for_task()
                 self.append_chat('You\n' + event_text(event) + '\n')
-            elif kind in ('THOUGHT', 'STATUS', 'ERROR', 'RECOVERY'):
+            elif kind in ('THOUGHT', 'STATUS', 'ERROR', 'RECOVERY', 'TASK_PROGRESS'):
                 self.append_chat('GhostOS\n' + event_text(event) + '\n')
             if kind in ('INFERENCE', 'RECOVERY'):
                 self.status.setText('●  ' + event_text(event)[:85])

@@ -13,6 +13,51 @@ concurrency:
   group: windows-release
   cancel-in-progress: true
 jobs:
+  local-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OLLAMA_HOST: 127.0.0.1:11434
+      OLLAMA_NO_CLOUD: '1'
+      OLLAMA_NUM_PARALLEL: '1'
+      OLLAMA_MAX_LOADED_MODELS: '1'
+      OLLAMA_MODELS: ${{ github.workspace }}/.ollama-models
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'ollama>=0.6.3,<1' 'pydantic>=2.9,<3' pillow numpy opencv-python-headless psutil tabulate
+      - name: Install verified Ollama runtime
+        run: |
+          curl --fail --location --retry 3 https://github.com/ollama/ollama/releases/download/v0.40.10/ollama-linux-amd64.tar.zst -o "$RUNNER_TEMP/ollama.tar.zst"
+          echo "1e8ad2d2a394efdd235bee74deec237badd95142ffba77588140ab2a9ecec227  $RUNNER_TEMP/ollama.tar.zst" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/ollama-runtime"
+          tar --zstd -xf "$RUNNER_TEMP/ollama.tar.zst" -C "$RUNNER_TEMP/ollama-runtime"
+          rm "$RUNNER_TEMP/ollama.tar.zst"
+          echo "$RUNNER_TEMP/ollama-runtime/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache@v4
+        with:
+          path: .ollama-models
+          key: ollama-cpu-qwen35-08b-protocol-v1
+      - name: Start loopback-only local server and download test weights
+        run: |
+          ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:11434/api/version; then break; fi
+            sleep 1
+          done
+          ollama pull qwen3.5:0.8b
+      - name: Verify real local tool calls and structured vision output
+        run: python build_tools/check_local_model.py
+      - name: Print local server diagnostics on failure
+        if: failure()
+        run: tail -n 120 "$RUNNER_TEMP/ollama.log" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-model-verification
+          path: dist/local-model-verification.json
+          if-no-files-found: error
   build:
     runs-on: windows-2022
     timeout-minutes: 60
@@ -49,7 +94,7 @@ jobs:
         run: python -c "from agent.windows_use_engine import local_desktop; from ghostos_vendor.windows_use.uia import GetRootControl; desktop = local_desktop(); assert GetRootControl(); print('Windows-Use native UIA ready')"
       - name: Freeze application
         run: python build_tools/build.py
-      - name: Check frozen imports, native input, tabs, Windows-Use and neural speech
+      - name: Check frozen imports, native input, media playback, tabs, model setup and neural speech
         run: |
           dist\GhostOS\GhostOS.exe --version
           dist\GhostOS\GhostOS.exe --diagnostics
@@ -110,7 +155,7 @@ jobs:
             dist/build-dependencies.txt
           if-no-files-found: error
   publish:
-    needs: build
+    needs: [build, local-model]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -119,6 +164,10 @@ jobs:
         with:
           name: release-files
           path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: local-model-verification
+          path: release
       - name: Publish tagged release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -126,6 +175,8 @@ jobs:
           TAG: v${{ needs.build.outputs.version }}
           TARGET_SHA: ${{ github.sha }}
         run: |
+          model_hash=$(sha256sum release/local-model-verification.json | cut -d ' ' -f 1)
+          echo "$model_hash  local-model-verification.json" >> release/SHA256SUMS.txt
           current=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
           if [ "$current" != "$TARGET_SHA" ]; then
             echo "Superseded by a newer main commit; publish the newer build instead."

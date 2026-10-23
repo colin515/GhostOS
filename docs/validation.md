@@ -1,4 +1,4 @@
-# Validation · GhostOS 1.3.1
+# Validation · GhostOS 1.3.2
 
 Automated unit/regression coverage runs on Linux and Windows. The release pipeline
 also installs all Windows dependencies, freezes the app, checks frozen imports,
@@ -9,10 +9,20 @@ A disposable Edge profile also exercises CDP navigation, a local form fill and
 click, existing-tab reuse from a different current page, verified new tabs,
 explicit tab activation, native UIA/address-bar navigation, disconnect/reconnect
 and preservation of the completed result tab.
+It plays and pauses an actual local silent HTML5 audio stream, verifies playback
+time advancement and idempotent Play, and exercises frozen model-setup verification
+through the real SDK adapter against a loopback fixture.
 Inno Setup compilation and a real silent install/uninstall must succeed before
 GitHub publishes the downloadable installer.
 
 Regression coverage includes:
+
+- the reported YouTube-open-plus-play request, separate pending steps and rejected
+  false model completion while playback is paused;
+- the reported CONTINUE-without-action reply through actual SDK HTTP parsing,
+  bounded repair, single-image preservation and independently validated JSON schemas;
+- 8 GB model recommendations, inert setup verification and failed checks preventing save;
+- context-budget trimming that preserves the original request and latest outcome;
 
 - Windows-Use local tool calls and structured output, blocked unsupported tools,
   single-image prompts, coordinate scaling and bounded advisory loop memory;
@@ -37,7 +47,11 @@ Regression coverage includes:
 
 Tests deny external Python socket connections. Speech unit tests use fake audio
 engines; the frozen voice probe synthesizes locally with ONNX telemetry disabled.
-No test needs a cloud model or sends microphone recordings off the PC.
+No test needs a cloud model or sends microphone recordings off the PC. A separate
+Linux release job uses a checksum-pinned Ollama server and real local
+`qwen3.5:0.8b` weights to exercise native tool calling and the full structured
+action schema on CPU. Its model digest and verification results are attached to
+the release. This validates protocol compatibility, not 4B/GPU task accuracy.
 
 Automated checks do not establish reliable completion of arbitrary natural
 language tasks. The Galaxus purchase/search workflow, real microphone acoustics,

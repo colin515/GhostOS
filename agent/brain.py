@@ -1,7 +1,8 @@
 """One image per request, bounded context, schema-constrained local inference."""
 from __future__ import annotations
 import json
-from agent.models import Action, Decision, ACTION_HELP
+from agent.models import Action, ACTION_HELP
+from agent.model_protocol import decision_schema, parse_decision, repair_message, ModelReplyError, thinking_option
 
 SYSTEM = '''You are GhostOS, a Windows 10/11 automation agent acting for the local user.
 Return schema-valid JSON. summary is a concise public progress assessment, not hidden reasoning.
@@ -70,6 +71,7 @@ class Brain:
         self.settings = settings
         self.client = ollama.Client(host=settings.ollama_host, timeout=90, trust_env=False)
         self.context = Context()
+        self.thinking = thinking_option(metadata)
 
     @staticmethod
     def fast_command(goal):
@@ -79,24 +81,31 @@ class Brain:
         return Action.model_validate_json(goal[len('/action '):])
 
     def next(self, goal, frame, tree, browser_state='', feedback='', emit=None):
-        prompt = json.dumps(dict(goal=goal, history=self.context.text(), ui_tree=tree,
-                                 browser=browser_state[:7000], feedback=feedback,
-                                 screenshot_size=frame.image.size, game_mode=self.settings.game_mode),
-                            ensure_ascii=False)
-        parts = []
-        schema = Decision.model_json_schema()
-        if 'DECISION_ACTION_REQUIRED' in feedback:
-            schema['properties']['status'] = {'type': 'string', 'enum': ['CONTINUE']}
-            schema['properties']['action'] = {'$ref': '#/$defs/Action'}
-        stream = self.client.chat(model=self.settings.model,
-                                  messages=[{'role': 'system', 'content': SYSTEM},
-                                            {'role': 'user', 'content': prompt,
-                                             'images': [frame.jpeg(grid=not self.settings.game_mode)]}],
-                                  format=schema, stream=True,
-                                  options={'temperature': 0, 'num_ctx': self.settings.context_tokens, 'num_predict': self.settings.prediction_tokens},
-                                  keep_alive='3m')
-        for chunk in stream:
-            parts.append(chunk.message.content or '')
-            if emit:
-                emit('INFERENCE', message='Reading screen and preparing next action')
-        return Decision.model_validate_json(''.join(parts))
+        from agent.context_budget import pack_prompt
+        prompt = pack_prompt(goal,self.context.text(),tree,browser_state,feedback,frame.image.size,self.settings,len(SYSTEM))
+        required = 'DECISION_ACTION_REQUIRED' in feedback
+        messages = [{'role': 'system', 'content': SYSTEM},
+                    {'role': 'user', 'content': prompt, 'images': [frame.jpeg(grid=not self.settings.game_mode)]}]
+        for attempt in range(2):
+            parts = []
+            stream = self.client.chat(model=self.settings.model, messages=messages,
+                format=decision_schema(required), stream=True, **self.thinking,
+                options={'temperature': 0, 'num_ctx': self.settings.context_tokens, 'num_predict': self.settings.prediction_tokens},
+                keep_alive='3m')
+            for chunk in stream:
+                parts.append(chunk.message.content or '')
+                if emit:
+                    emit('INFERENCE', message='Reading screen and preparing next action')
+            content = ''.join(parts)
+            try:
+                return parse_decision(content, required)
+            except ModelReplyError as exc:
+                if attempt:
+                    raise
+                if emit:
+                    emit('WARNING', message='The model returned an incomplete action. Asking it to correct the reply; nothing was executed.')
+                messages += [{'role': 'assistant', 'content': content[:2500]},
+                             {'role': 'user', 'content': repair_message(exc)}]
+
+    def close(self):
+        self.client._client.close()

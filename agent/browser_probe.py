@@ -1,6 +1,8 @@
 """Deterministic Windows CDP smoke test using a disposable profile and local form."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import io
+import wave
 from pathlib import Path
 import tempfile
 import threading
@@ -11,13 +13,27 @@ from agent.models import Action
 from agent.web_engine import WebEngine
 
 PAGE = b'''<!doctype html><title>GhostOS browser verification</title>
-<label for="q">Search</label><input id="q"><button id="go" onclick="document.querySelector('#result').textContent=document.querySelector('#q').value">Search</button><output id="result"></output>'''
+<label for="q">Search</label><input id="q"><button id="go" onclick="document.querySelector('#result').textContent=document.querySelector('#q').value">Search</button><output id="result"></output>
+<audio controls muted preload="auto" src="/silence.wav"></audio>'''
 
 
 def run_probe():
+    audio = io.BytesIO()
+    with wave.open(audio, 'wb') as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(8000)
+        wav.writeframes(b'\0\0' * 8000 * 8)
+    silent_wav = audio.getvalue()
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             self.send_response(200)
+            if self.path == '/silence.wav':
+                self.send_header('Content-Type', 'audio/wav')
+                self.send_header('Content-Length', str(len(silent_wav)))
+                self.end_headers()
+                self.wfile.write(silent_wav)
+                return
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.end_headers()
             self.wfile.write(PAGE.replace(b'GhostOS browser verification', b'Netflix verification' if self.path == '/netflix' else b'YouTube verification'))
@@ -30,8 +46,10 @@ def run_probe():
             elif self.path == '/api/chat':
                 if len(body['messages'][-1].get('images', [])) != 1:
                     raise RuntimeError('Windows-Use did not send exactly one latest image')
+                setup_test = 'inert setup self-test' in body['messages'][-1]['content']
                 result = {'model':'ghostos-local-probe', 'done':True, 'message':{'role':'assistant','content':'',
-                          'tool_calls':[{'function':{'name':'browser_new_tab','arguments':{}}}]}}
+                          'tool_calls':[{'function':{'name':'wait' if setup_test else 'browser_new_tab',
+                                                    'arguments':{'seconds':0} if setup_test else {}}}]}}
             else:
                 self.send_error(404)
                 return
@@ -54,6 +72,11 @@ def run_probe():
             web.execute(Action(kind='browser_click', args={'selector':'#go'}))
             if web.page.locator('#result').inner_text() != 'GhostOS CDP verified':
                 raise RuntimeError('CDP form result did not match')
+            # Real HTML5 playback of local silence: no external media, accounts or audio output.
+            for operation in ('play', 'play', 'pause'):
+                playback = json.loads(web.execute(Action(kind='browser_media',args={'operation':operation})))
+                if not playback.get('verified') or playback['media']['paused'] != (operation == 'pause'):
+                    raise RuntimeError('HTML5 playback/pause was not verified: ' + str(playback))
             result_page = web.page
             # Reproduce the reported wrong-site failure without external websites or a model.
             web.execute(Action(kind='browser_new_tab'))
@@ -103,6 +126,11 @@ def run_probe():
                         raise RuntimeError('Windows-Use tool-call response was not translated correctly')
             finally:
                 planner.close()
+            from agent.model_setup import verify_model
+            setup_report = verify_model(Settings(data_dir=Path(root),
+                ollama_host=f'http://127.0.0.1:{server.server_port}'),'ghostos-local-probe',lambda message:None)
+            if setup_report['agent_protocol'] != 'passed' or setup_report['actions_executed']:
+                raise RuntimeError('Installed model verification bypassed the local agent protocol')
             web.page = result_page
             port_file = Path(root) / 'cdp-profile-msedge' / 'DevToolsActivePort'
             port = int(port_file.read_text().splitlines()[0])
@@ -122,7 +150,7 @@ def run_probe():
                 raise RuntimeError('Original result tab was not reused after reconnect')
             if reconnected.page.locator('#result').inner_text() != 'GhostOS CDP verified':
                 raise RuntimeError('Result state was lost on reconnect')
-            print('Verified CDP launch/DOM, existing-tab reuse from a different site, new tabs, tab activation, native UIA/URL fallback, Windows-Use SDK/local tool calls and persistent results')
+            print('Verified CDP launch/DOM, actual HTML5 playback/pause, idempotent play, existing-tab reuse, new tabs, native UIA/URL fallback, Windows-Use SDK/local tool calls, setup protocol and persistent results')
     finally:
         # Only the disposable browser started by this explicit probe is closed.
         current = reconnected or web

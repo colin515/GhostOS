@@ -36,7 +36,9 @@ will trust a newly published binary. Bundled binaries do not require Python.
    It does not download another model or capture your desktop. Slow model loads
    may reach the 120-second request timeout; choose a smaller model if needed.
 7. Save after the selected vision tag appears in the local model inventory.
-   Setup checks local-only metadata and vision capability before saving.
+   Setup checks local-only metadata, vision capability and an inert request
+   through the actual selected agent engine before saving. Use **Verify agent
+   model** to view the result separately. See [8 GB model setup](model_setup.md).
 
 GhostOS rejects cloud-tagged models and inspects local model metadata before
 sending any goal or screenshot. A remote alias or a model without vision support

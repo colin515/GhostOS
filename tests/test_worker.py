@@ -227,3 +227,41 @@ def test_navigation_permission_denial_is_not_retried(harness, monkeypatch):
     events = run('Open Microsoft Store')
     assert len(actions) == 1
     assert any(e.get('status') == 'PERMISSION_DENIED' for e in events)
+
+
+def test_open_youtube_then_play_cannot_finish_at_navigation(harness, monkeypatch):
+    import agent.controller
+    settings, actions, decisions, run = harness
+    settings.max_steps = 8
+    execute = agent.controller.Controller.execute
+    def media(self, action):
+        if action.kind == 'browser_media':
+            self.safety.authorize(action)
+            actions.append(action)
+            return json.dumps({'operation':action.args['operation'], 'verified':True, 'media':{'paused':False}})
+        return execute(self, action)
+    monkeypatch.setattr(agent.controller.Controller, 'execute', media)
+    events = run('open the opened youtube page and play the video its on')
+    assert [a.kind for a in actions] == ['browser_open','browser_media']
+    progress = [e for e in events if e['kind'] == 'TASK_PROGRESS']
+    assert [e['completed'] for e in progress] == [1,2]
+    assert len([e for e in events if e.get('status') == 'GOAL_SATISFIED']) == 1
+    assert not decisions  # These verified operations do not need a model to guess.
+
+
+def test_failed_playback_and_repeated_model_success_claims_never_finish(harness, monkeypatch):
+    import agent.controller
+    settings, actions, decisions, run = harness
+    settings.max_steps = 8
+    execute = agent.controller.Controller.execute
+    def media(self, action):
+        if action.kind == 'browser_media':
+            actions.append(action)
+            return json.dumps({'operation':action.args['operation'], 'verified':True,
+                               'media':{'paused':True}}) if action.args['operation'] == 'state' else json.dumps({'verified':False})
+        return execute(self, action)
+    monkeypatch.setattr(agent.controller.Controller, 'execute', media)
+    decisions.extend([Decision(status='GOAL_SATISFIED',summary='YouTube is open') for _ in range(8)])
+    events = run('Open YouTube and play the current video')
+    assert not any(e.get('status') == 'GOAL_SATISFIED' for e in events)
+    assert any(e['kind'] == 'RECOVERY' and 'Playback' in e.get('message','') for e in events)

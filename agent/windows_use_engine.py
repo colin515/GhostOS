@@ -2,15 +2,11 @@
 from __future__ import annotations
 import json
 import os
-from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from agent.brain import Brain, Context, SYSTEM, ensure_local_vision, local_model_metadata
 from agent.models import Action, Decision, ARG_TYPES
-
-
-class ActionDecision(Decision):
-    status: Literal['CONTINUE']
-    action: Action
+from agent.model_protocol import (ActionDecision, WireDecision, ModelReplyError,
+                                  parse_decision, repair_message, thinking_option)
 
 
 class Finish(BaseModel):
@@ -58,7 +54,7 @@ class WindowsUseBrain:
     """
     fast_command = staticmethod(Brain.fast_command)
 
-    def __init__(self, settings):
+    def __init__(self, settings, observe=True):
         # This module never imports upstream Agent, cloud providers or telemetry.
         from ghostos_vendor.windows_use.providers.ollama import ChatOllama
         from ghostos_vendor.windows_use.tools import Tool
@@ -69,8 +65,8 @@ class WindowsUseBrain:
         self.tools_supported = 'tools' in (metadata.get('capabilities') or [])
         self.llm = ChatOllama(model=settings.model, host=settings.ollama_host, timeout=90,
                              temperature=0, options={'num_ctx':settings.context_tokens,
-                             'num_predict':settings.prediction_tokens}, keep_alive='3m')
-        self.desktop = local_desktop() if os.name == 'nt' else None
+                             'num_predict':settings.prediction_tokens}, keep_alive='3m', **thinking_option(metadata))
+        self.desktop = local_desktop() if observe and os.name == 'nt' else None
         self.loop_guard = LoopGuard()
         self.last_action = None
         self.tools = [Tool(name=name, description=f'GhostOS {name}. Arguments are validated; execution requires the configured permissions.', model=model)
@@ -114,9 +110,10 @@ class WindowsUseBrain:
             if emit:
                 emit('WARNING', message='Windows-Use accessibility provider unavailable; using the current screenshot and fallback UIA.')
         nudge = self.loop_guard.check() or ''
-        prompt = json.dumps({'goal':goal, 'history':self.context.text(), 'desktop':desktop,
-                             'browser':browser_state[:7000], 'feedback':feedback, 'recovery_hint':nudge,
-                             'screenshot_size':frame.image.size}, ensure_ascii=False)
+        from agent.context_budget import pack_prompt
+        tool_chars = len(json.dumps([tool.json_schema for tool in self.tools])) if self.tools_supported else 0
+        prompt = pack_prompt(goal,self.context.text(),desktop,browser_state,feedback + '\n' + nudge,
+                             frame.image.size,self.settings,len(SYSTEM),tool_chars)
         messages = [SystemMessage(content=SYSTEM + '\nWindows-Use supplies the window inventory and cached accessibility controls. '
                     'Their x/y coordinates are already resized screenshot pixels, as are all mouse tool arguments. '
                     'Use app_list for installed apps and focus_window with a listed handle for background windows. '
@@ -129,19 +126,49 @@ class WindowsUseBrain:
             tools = [tool for tool in self.tools if tool.name != 'finish' or 'DECISION_ACTION_REQUIRED' not in feedback]
             response = self.llm.invoke(messages, tools=tools)
             if response.type != LLMEventType.TOOL_CALL or not response.tool_call:
-                raise ValueError('Windows-Use expected one tool call; the goal remains active')
+                required = 'DECISION_ACTION_REQUIRED' in feedback
+                try:
+                    decision = parse_decision(response.content, required)
+                except ModelReplyError as exc:
+                    from ghostos_vendor.windows_use.messages import AIMessage, HumanMessage
+                    messages += [AIMessage(content=(response.content or '')[:2500]), HumanMessage(content=repair_message(exc))]
+                    corrected = self.llm.invoke(messages, structured_output=ActionDecision if required else WireDecision)
+                    decision = parse_decision(corrected.content, required)
+                self.last_action = decision.action
+                return decision
             call = response.tool_call
             if call.name == 'finish':
                 if 'DECISION_ACTION_REQUIRED' in feedback:
                     raise ValueError('Completion is not yet verified; an action is required')
                 return Decision(status='GOAL_SATISFIED', summary=Finish.model_validate(call.params).summary)
-            action = Action(kind=call.name, args=call.params)
+            if call.name not in ARG_TYPES:
+                raise ValueError('Unsupported computer-use tool; no action was executed')
+            try:
+                action = Action(kind=call.name, args=call.params)
+            except ValidationError:
+                from ghostos_vendor.windows_use.messages import AIMessage, HumanMessage
+                messages += [AIMessage(content=json.dumps({'tool':call.name,'args':call.params})[:2500]),
+                             HumanMessage(content=repair_message('Arguments for ' + call.name + ' did not match its schema.'))]
+                corrected = self.llm.invoke(messages, structured_output=ActionDecision)
+                decision = parse_decision(corrected.content, action_required=True)
+                self.last_action = decision.action
+                return decision
             decision = Decision(status='CONTINUE', summary='Next: ' + action.kind.replace('_', ' '), action=action)
         else:
-            response = self.llm.invoke(messages, structured_output=ActionDecision if 'DECISION_ACTION_REQUIRED' in feedback else Decision)
-            decision = Decision.model_validate_json(response.content)
-            if 'DECISION_ACTION_REQUIRED' in feedback and decision.status != 'CONTINUE':
-                raise ValueError('Completion is not yet verified; choose an action')
+            from ghostos_vendor.windows_use.messages import AIMessage, HumanMessage
+            required = 'DECISION_ACTION_REQUIRED' in feedback
+            for attempt in range(2):
+                response = self.llm.invoke(messages, structured_output=ActionDecision if required else WireDecision)
+                try:
+                    decision = parse_decision(response.content, required)
+                    break
+                except ModelReplyError as exc:
+                    if attempt:
+                        raise
+                    if emit:
+                        emit('WARNING', message='The model returned an incomplete action. Correcting its reply before continuing.')
+                    messages += [AIMessage(content=(response.content or '')[:2500]),
+                                 HumanMessage(content=repair_message(exc))]
         self.last_action = decision.action
         return decision
 

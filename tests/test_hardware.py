@@ -47,3 +47,11 @@ def test_benchmark_refuses_remote_alias_before_inference(monkeypatch):
     with pytest.raises(ValueError, match='Cloud/remote'):
         benchmark_model(Settings(), 'llava', lambda message: None)
     assert not calls
+
+
+@pytest.mark.parametrize('vram,model', [(8,'qwen3.5:4b'), (12,'qwen3-vl:8b'), (4,'qwen3.5:2b')])
+def test_model_recommendation_leaves_headroom_for_8gb_gpus(monkeypatch, vram, model):
+    from agent.hardware import hardware_report
+    monkeypatch.setattr('agent.hardware.subprocess.check_output',lambda *a,**kw:f'Local GPU, {vram * 1024}\n')
+    report = hardware_report()
+    assert report['recommended_model'] == model
