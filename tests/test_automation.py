@@ -3,7 +3,6 @@ from types import SimpleNamespace
 import pytest
 from automation.recipe_parser import load_recipe
 from automation.scheduler import task_xml
-from automation.watcher import watch
 
 
 def test_load_recipe_file_extension(tmp_path):
@@ -34,6 +33,9 @@ def test_task_xml_parameter_validation(tmp_path):
 
 
 def test_watcher_parameter_validation(tmp_path):
+    pytest.importorskip("watchdog")
+    from automation.watcher import watch
+
     recipe_path = tmp_path / "recipe.yaml"
     recipe_path.write_text("name: test\nsteps:\n  - kind: wait\n    args: {seconds: 0.1}\n")
 
