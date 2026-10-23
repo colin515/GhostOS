@@ -8,14 +8,18 @@ PROPERTY = 'GhostOS.NonInteractiveUI'
 def mark_ui(hwnd):
     if os.name == 'nt':
         import win32gui
-        win32gui.SetProp(int(hwnd), PROPERTY, 1)
+        if win32gui.IsWindow(int(hwnd)):
+            win32gui.SetProp(int(hwnd), PROPERTY, 1)
 
 
 def is_agent_window(hwnd):
     if not hwnd or os.name != 'nt':
         return False
     import win32gui
-    return bool(win32gui.GetProp(int(hwnd), PROPERTY))
+    try:
+        return bool(win32gui.GetProp(int(hwnd), PROPERTY))
+    except Exception:
+        return False
 
 
 def focus_window(hwnd, stop=None, maximize=False):
