@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QDialog, QLabel, QPushButton,
                             QTextEdit, QVBoxLayout, QHBoxLayout)
 from ui.tasks import Task
-from agent.hardware import hardware_report, ollama_status
+from agent.hardware import hardware_report, ollama_status, benchmark_model
 from setup import MODELS, download_model, download_voice
 
 class SetupWizard(QDialog):
@@ -37,6 +37,8 @@ class SetupWizard(QDialog):
         buttons = QHBoxLayout()
         self.scan = QPushButton('Scan again')
         self.pull = QPushButton('Download selected model')
+        self.benchmark = QPushButton('Benchmark selected model')
+        layout.addWidget(self.benchmark)
         self.done = QPushButton('Save and continue')
         buttons.addWidget(self.scan)
         buttons.addWidget(self.pull)
@@ -45,10 +47,11 @@ class SetupWizard(QDialog):
         self.scan.clicked.connect(self.inspect)
         self.pull.clicked.connect(self.download)
         self.done.clicked.connect(self.save)
+        self.benchmark.clicked.connect(self.run_benchmark)
         self.inspect()
 
     def busy(self, yes):
-        for button in (self.scan, self.pull, self.done):
+        for button in (self.scan, self.pull, self.done, self.benchmark):
             button.setEnabled(not yes)
         self.model.setEnabled(not yes)
         self.voice.setEnabled(not yes)
@@ -95,12 +98,22 @@ class SetupWizard(QDialog):
             self.note.setText('Downloads complete. Click Save and continue.')
         self.launch_task(work, complete)
 
+    def run_benchmark(self):
+        model = self.model.currentText().strip()
+        def complete(report):
+            import json
+            self.report.setPlainText(json.dumps(report, indent=2))
+            self.note.setText('Benchmark complete. Save and continue when ready.')
+        self.launch_task(lambda progress: benchmark_model(self.runtime.settings, model, progress), complete)
+
     def save(self):
         model = self.model.currentText().strip()
         def work(progress):
             status = ollama_status(self.runtime.settings.ollama_host)
             if not status['reachable'] or model not in status['installed_models']:
                 raise ValueError('Start Ollama and download the selected model first (use its exact installed tag).')
+            from agent.brain import ensure_local_vision, local_model_metadata
+            ensure_local_vision(local_model_metadata(self.runtime.settings.ollama_host, model))
             return model
         def complete(model):
             self.runtime.settings.model = model

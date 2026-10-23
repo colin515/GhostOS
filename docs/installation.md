@@ -1,4 +1,4 @@
-# Installation · GhostOS 1.0.0
+# Installation · GhostOS 1.0.1
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ only. Internet is used to install packages and download models; subsequent model
 inference, screenshots and speech transcription stay local. Browser tasks use
 the network addresses requested by the user.
 
-Download **GhostOS_Installer_v1.0.0.exe** from the
+Download **GhostOS_Installer_v1.0.1.exe** from the
 [latest GitHub Release](https://github.com/colin515/GhostOS/releases/latest), run
 it, and open GhostOS from the Start Menu. Choose the `.exe` under **Assets**;
 the source ZIP is for developers. No Python installation is needed. The
@@ -29,7 +29,13 @@ will trust a newly published binary. Bundled binaries do not require Python.
    its streaming local API, equivalent to `ollama pull MODEL`.
 5. Optionally check voice download. `faster-whisper` is a Python package, **not**
    an Ollama model. Its CTranslate2 Whisper weights download from Hugging Face.
-6. Save after the selected vision tag appears in the local model inventory.
+6. Optionally click **Benchmark selected model**. This measures a short local
+   vision request using a synthetic image, reports model load time and output
+   tokens per second, and checks actual GPU memory residency through Ollama.
+   It does not download another model or capture your desktop. Slow model loads
+   may reach the 120-second request timeout; choose a smaller model if needed.
+7. Save after the selected vision tag appears in the local model inventory.
+   Setup checks local-only metadata and vision capability before saving.
 
 GhostOS rejects cloud-tagged models and inspects local model metadata before
 sending any goal or screenshot. A remote alias or a model without vision support

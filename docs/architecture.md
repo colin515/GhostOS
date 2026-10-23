@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.0.0
+# Architecture · GhostOS 1.0.1
 
 `main.py` selects desktop, network, CLI, recipe, watcher or scheduler mode and
 sets Per-Monitor-V2 DPI awareness before importing capture/Qt libraries. One

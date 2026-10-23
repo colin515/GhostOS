@@ -4,7 +4,7 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** version 1.0.0. Automated tests and Windows build, installation and
+**Status:** version 1.0.1. Automated tests and Windows build, installation and
 uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
 and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
@@ -12,7 +12,7 @@ and simple goals. No subscriptions, paid tiers or hosted inference service.
 ## Download and install
 
 1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
-2. Under **Assets**, download **GhostOS_Installer_v1.0.0.exe** and run it.
+2. Under **Assets**, download **GhostOS_Installer_v1.0.1.exe** and run it.
 3. Open GhostOS from the Start Menu. The first-run wizard guides you through
    installing Ollama and downloading a local vision model.
 
@@ -54,8 +54,11 @@ hyphen.** All inference goes to `http://127.0.0.1:11434`. No cloud API key is ne
 
 `llama3.2-vision:11b` and `qwen2.5vl:3b` are selectable alternatives. A 16 GB GPU
 is offered 32B as an optional choice, rather than being assumed to fit it fully.
-The GPU inventory is a fit estimate, not a GPU inference benchmark. Use `ollama ps`
-to check actual offloading after loading a model. Model licences remain separate.
+The hardware inventory is a model-fit estimate. After downloading a model, click
+**Benchmark selected model** in setup to measure local vision inference, model
+load time, output tokens per second, RAM availability and GPU memory use. The
+benchmark uses a synthetic image and does not capture your desktop. Actual
+workflow latency depends on screen complexity and context size. Model licences remain separate.
 
 ### Desktop and phone dashboard
 
@@ -122,11 +125,11 @@ always use observe → decide → authorize → execute → verify.
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe build_tools/build.py
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 build_tools/GhostOS_installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.1 build_tools/GhostOS_installer.iss
 ```
 
 A one-folder PyInstaller distribution contains `GhostOS.exe` and its runtime.
-Inno Setup wraps it as `GhostOS_Installer_v1.0.0.exe`, installs per user without
+Inno Setup wraps it as `GhostOS_Installer_v1.0.1.exe`, installs per user without
 admin rights, adds Start Menu shortcuts and provides an uninstaller. The app has
 an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
@@ -134,7 +137,7 @@ show a warning. This project does not promise otherwise.
 
 Update `VERSION` and push directly to `main`. The release workflow automatically
 builds and publishes that version, creating its matching tag at the exact build
-commit. Pushing a matching version tag (`v1.0.0`) or manually running **Windows
+commit. Pushing a matching version tag (`v1.0.1`) or manually running **Windows
 release** from `main` also works. Use a new version for every published release;
 published assets are not silently replaced.
 

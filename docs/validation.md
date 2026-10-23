@@ -1,11 +1,11 @@
-# Validation and release readiness · GhostOS 1.0.0
+# Validation and release readiness · GhostOS 1.0.1
 
 ## Verified in the development environment
 
 The initial validation runs on Linux/Python 3.12 with Windows APIs isolated in
 tests. This does not certify the Windows desktop or game drivers.
 
-- 56 automated tests passed; the native Win32 INPUT structure-size test is skipped
+- 62 automated tests passed; the native Win32 INPUT structure-size test is skipped
   outside Windows. Tests cover permission tiers, rejection of untrusted action
   fields, decline/timeout/cancellation, one-time approvals, action/recipe schemas,
   exact step-budget completion, observe/execute/terminal states, DPI coordinate
@@ -49,6 +49,17 @@ Use an ordinary, unlocked desktop session with no valuable documents open.
 
 These checks need real Windows 10/11, representative GPUs and the intended games.
 A GUI screenshot, mocked controller or CI smoke check cannot prove them.
+
+## Version 1.0.1 changes
+
+- Setup can benchmark the selected installed local vision model using a synthetic
+  image. Results include load time, output speed, system RAM availability and
+  observed GPU memory use. Neither screenshots nor desktop input are involved.
+- Desktop and console setup reject remote aliases and non-vision models before
+  marking configuration complete.
+- Benchmark calculations, local-only enforcement and asynchronous setup controls
+  have regression coverage. Actual GPU performance remains a measurement to run
+  on the user's PC; CI does not emulate a GPU.
 
 ## Known operating limits
 

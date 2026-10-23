@@ -1,4 +1,4 @@
-# Local web dashboard · GhostOS 1.0.0
+# Local web dashboard · GhostOS 1.0.1
 
 Start it in desktop Settings, or launch `python main.py --desktop --web`. For a
 server without the GhostOS desktop UI, use `python main.py --web`. By default the

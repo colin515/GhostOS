@@ -63,3 +63,50 @@ def ollama_status(host='http://127.0.0.1:11434'):
         return {'reachable': True, 'installed_models': names, 'loaded_models': loaded}
     except Exception as exc:
         return {'reachable': False, 'installed_models': [], 'error': str(exc)}
+
+
+def benchmark_model(settings, model, progress=print):
+    """Explicit local inference benchmark using a synthetic image, never the desktop."""
+    from agent.brain import ensure_local_vision, local_model_metadata
+    if not model.strip() or model.lower().endswith('cloud'):
+        raise ValueError('Select an installed local vision model')
+    progress('Checking that the selected model is local and supports vision…')
+    ensure_local_vision(local_model_metadata(settings.ollama_host, model))
+    import io
+    import ollama
+    import psutil
+    from PIL import Image, ImageDraw
+    sample = Image.new('RGB', (512, 256), '#182238')
+    ImageDraw.Draw(sample).text((30, 110), 'GHOSTOS LOCAL VISION TEST', fill='white')
+    image = io.BytesIO()
+    sample.save(image, format='PNG')
+    client = ollama.Client(host=settings.ollama_host, timeout=120, trust_env=False)
+    progress('Loading the model and measuring local vision inference (up to 120 seconds)…')
+    available_before = psutil.virtual_memory().available
+    started = time.perf_counter()
+    result = client.generate(model=model, prompt='Describe this test image in one short sentence.',
+                             images=[image.getvalue()], stream=False, keep_alive='3m',
+                             options={'temperature': 0, 'num_ctx': 2048, 'num_predict': 24})
+    elapsed = time.perf_counter() - started
+    tokens = result.eval_count or 0
+    seconds = (result.eval_duration or 0) / 1_000_000_000
+    report = {
+        'model': model, 'wall_seconds': round(elapsed, 2),
+        'load_seconds': round((result.load_duration or 0) / 1_000_000_000, 2),
+        'generated_tokens': tokens,
+        'tokens_per_second': round(tokens / seconds, 2) if seconds > 0 else None,
+        'available_ram_before_gb': round(available_before / 1024**3, 2),
+        'available_ram_after_gb': round(psutil.virtual_memory().available / 1024**3, 2),
+        'gpu_acceleration': 'not verified', 'model_vram_gb': None,
+        'note': 'Synthetic image, 2K context, short output. Actual desktop/game latency may differ.'}
+    # Query after inference: hardware inventory alone does not prove GPU offload.
+    try:
+        canonical = model if ':' in model.rsplit('/', 1)[-1] else model + ':latest'
+        loaded = next((item for item in client.ps().models if item.model in (model, canonical)), None)
+        if loaded is not None and loaded.size_vram is not None:
+            report['model_vram_gb'] = round(loaded.size_vram / 1024**3, 2)
+            report['gpu_acceleration'] = 'GPU offload observed' if loaded.size_vram > 0 else 'CPU only observed'
+    except Exception as exc:
+        report['offload_check_error'] = str(exc)
+    progress('Benchmark complete. The model stays loaded for up to three minutes.')
+    return report

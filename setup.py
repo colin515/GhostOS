@@ -1,7 +1,7 @@
 """Interactive application configuration (not a setuptools packaging script)."""
 from __future__ import annotations
 from config import Settings
-from agent.hardware import hardware_report, ollama_status
+from agent.hardware import hardware_report, ollama_status, benchmark_model
 from agent.runtime import local_ip
 
 MODELS = ['qwen2.5vl:7b', 'qwen2.5vl:32b', 'llama3.2-vision:11b', 'llava:7b', 'qwen2.5vl:3b']
@@ -41,6 +41,10 @@ def run_console(settings):
         if input(f'Download {model}? This can use many GB. [y/N] ').lower() != 'y':
             return 1
         download_model(settings, model)
+    from agent.brain import ensure_local_vision, local_model_metadata
+    ensure_local_vision(local_model_metadata(settings.ollama_host, model))
+    if input('Benchmark selected local vision model (may take up to 120 seconds)? [y/N] ').lower() == 'y':
+        print(json.dumps(benchmark_model(settings, model), indent=2))
     if input('Download optional local voice model? [y/N] ').lower() == 'y':
         download_voice(settings)
         settings.voice_enabled = True
