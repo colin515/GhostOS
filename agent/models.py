@@ -45,6 +45,12 @@ class Delay(Args):
 class App(Args):
     name: str = Field(min_length=1, max_length=80)
 
+class AppQuery(Args):
+    query: str = Field(default='', max_length=80)
+
+class WindowHandle(Args):
+    hwnd: int = Field(gt=0)
+
 class EnsureApp(App):
     strategy: Literal['focus', 'launch', 'search'] = 'focus'
 
@@ -60,6 +66,16 @@ class URL(Args):
         if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username:
             raise ValueError('Only ordinary HTTP(S) URLs are supported')
         return self
+
+class BrowserOpen(URL):
+    new_tab: bool = False
+    backend: Literal['auto', 'native', 'cdp'] = 'auto'
+
+class BrowserTab(Args):
+    backend: Literal['auto', 'native', 'cdp'] = 'auto'
+
+class TabId(Args):
+    tab_id: int = Field(ge=0, le=500)
 
 class Locator(Args):
     selector: str = Field(min_length=1, max_length=1024)
@@ -81,14 +97,16 @@ class Template(Args):
 
 ARG_TYPES = {
     'mouse_move': Cursor, 'drag': Drag, 'scroll': Scroll, 'hotkey': Keys, 'type_text': Text, 'click': Click, 'shell': Shell, 'wait': Delay,
-    'open_app': App, 'ensure_app': EnsureApp, 'ui_click': Element, 'browser_navigate': URL,
+    'open_app': App, 'ensure_app': EnsureApp, 'app_list': AppQuery, 'focus_window': WindowHandle, 'ui_click': Element, 'browser_navigate': URL,
     'browser_click': Locator, 'browser_fill': Fill, 'browser_snapshot': Empty,
+    'browser_open': BrowserOpen, 'browser_new_tab': BrowserTab, 'browser_tabs': Empty, 'browser_switch_tab': TabId,
     'game_move': Move, 'game_key': GameKey, 'game_click': Empty,
     'template_click': Template, 'focus': Empty,
 }
 ActionKind = Literal[
-    'mouse_move', 'drag', 'scroll', 'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click',
+    'mouse_move', 'drag', 'scroll', 'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click', 'app_list', 'focus_window',
     'browser_navigate', 'browser_click', 'browser_fill', 'browser_snapshot',
+    'browser_open', 'browser_new_tab', 'browser_tabs', 'browser_switch_tab',
     'game_move', 'game_key', 'game_click', 'template_click', 'focus', 'ensure_app',
 ]
 
@@ -119,11 +137,16 @@ hotkey {keys:["ctrl","l"]}; type_text {text:"..."}; click {x:200,y:100,button:"l
 shell {script:"...",timeout:30}; wait {seconds:1.0}; open_app {name:"notepad"};
 ui_click {element_id:0}; focus {}; browser_navigate {url:"https://..."};
 browser_click {selector:"role=button[name=Submit]"}; browser_fill {selector:"input[name=q]",value:"..."};
+browser_open {url:"https://www.netflix.com/",new_tab:false,backend:"auto"} reuses a matching tab or navigates directly;
+browser_new_tab {backend:"auto"} actually creates and verifies a new tab;
+browser_tabs {} lists CDP tab IDs, titles and URLs; browser_switch_tab {tab_id:0} activates a listed tab;
 browser_snapshot {}; game_move {dx:50,dy:0}; game_key {key:"w",duration:0.2};
 game_click {}; template_click {name:"target.png",threshold:0.85}.
 Coordinates are pixels in the latest resized screenshot. UIA IDs only apply to current tree.
 ensure_app {name:"chrome",strategy:"focus"|"launch"|"search"} focuses/maximizes a running app,
-launches an installed app, or launches natively (legacy search maps to direct launch). Apps: chrome, edge, firefox, notepad, calculator, explorer, paint.
+launches an installed app, or launches natively (legacy search maps to direct launch). Apps: chrome, edge, firefox, notepad, calculator, explorer, paint, store (Microsoft Store).
+app_list {query:"word"} reads installed Windows app names; open_app {name:"exact installed name"} launches them directly.
+focus_window {hwnd:12345} focuses an external window from the current window inventory.
 Use native app launch, browser DOM actions and actual mouse control. Keyboard shortcuts are a fallback.
 mouse_move {x:200,y:100,duration:0.35}; drag {x:100,y:100,to_x:300,to_y:300,button:"left",duration:0.8}; scroll {ticks:-3,horizontal:false}.
 click supports left/right/middle/x1/x2 buttons and clicks:2 for double click. No arbitrary Python execution.

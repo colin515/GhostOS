@@ -4,7 +4,7 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** version 1.2.3. Automated tests and Windows build, installation and
+**Status:** version 1.3.0. Automated tests and Windows build, installation and
 uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
 and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
@@ -12,7 +12,7 @@ and simple goals. No subscriptions, paid tiers or hosted inference service.
 ## Download and install
 
 1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
-2. Under **Assets**, download **GhostOS_Installer_v1.2.3.exe** and run it.
+2. Under **Assets**, download **GhostOS_Installer_v1.3.0.exe** and run it.
 3. Open GhostOS from the Start Menu. The first-run wizard guides you through
    installing Ollama and downloading a local vision model.
 
@@ -129,8 +129,26 @@ without an interactive approval channel deny actions needing confirmation.
 
 ## Autonomous recovery and performance
 
+The default computer-use engine integrates the MIT-licensed
+[Windows-Use SDK](https://github.com/Jeomon/Windows-Use) with local Ollama and
+cached Windows accessibility observations. Choose the engine in the AI gear
+beside Send. It requires no cloud key or paid service; the installer includes the
+local components and licences. All proposed actions still pass GhostOS approvals.
+See [the engine integration](ghostos_vendor/windows_use/UPSTREAM.md).
+
+Version 1.3 adds direct, verified navigation before vision inference. Try **Open
+Microsoft Store**, **Open a new tab in Google Chrome**, or **Open Netflix in
+Chrome**. A missing app/site in the screenshot is not a reason to stop. Store
+uses its registered Windows URI; a new tab requires evidence that a tab was
+created; website navigation checks the actual destination URL. Existing matching
+tabs are reused when accessible. These simple operations do not require a model
+verdict. Longer goals continue into the model-driven workflow after navigation;
+opening the site alone cannot finish a search or form task.
+
+
 Native Windows APIs restore and verify focus. Known applications launch directly
-from their installed executable, without Windows Search or Alt+Tab recovery.
+from their installed executable or registered Store URI, without Windows Search
+or Alt+Tab recovery.
 Browser actions prefer Playwright/CDP with a separate loopback browser profile;
 CDP failures warn, offer optional setup help and switch to mouse/keyboard control.
 See [browser control](docs/browser_control.md).
@@ -170,8 +188,8 @@ avoid feedback loops. Inspect every recipe you download.
 
 For an explicit, model-free fast path, pass `/action {"kind":"hotkey","args":{"keys":["ctrl","l"]}}`
 as the goal. PowerShell uses the `shell` action with a `script` and bounded
-`timeout`; it still passes the current permission tier. Natural language goals
-always use observe → decide → authorize → execute → verify.
+`timeout`; it still passes the current permission tier. Explicit natural-language navigation uses deterministic, permission-checked actions
+and verification. Other goals use observe → decide → authorize → execute → verify.
 
 ## Build and release
 
@@ -179,11 +197,11 @@ always use observe → decide → authorize → execute → verify.
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe build_tools/build.py
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.2.3 build_tools/GhostOS_installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.3.0 build_tools/GhostOS_installer.iss
 ```
 
 A one-folder PyInstaller distribution contains `GhostOS.exe` and its runtime.
-Inno Setup wraps it as `GhostOS_Installer_v1.2.3.exe`, installs per user without
+Inno Setup wraps it as `GhostOS_Installer_v1.3.0.exe`, installs per user without
 admin rights, adds Start Menu shortcuts and provides an uninstaller. The app has
 an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
@@ -191,7 +209,7 @@ show a warning. This project does not promise otherwise.
 
 Update `VERSION` and push directly to `main`. The release workflow automatically
 builds and publishes that version, creating its matching tag at the exact build
-commit. Pushing a matching version tag (`v1.2.3`) or manually running **Windows
+commit. Pushing a matching version tag (`v1.3.0`) or manually running **Windows
 release** from `main` also works. Use a new version for every published release;
 published assets are not silently replaced.
 
@@ -238,6 +256,6 @@ credentials, tokens, browser profiles or private screenshots. Contributions must
 remain compatible with **GPL-3.0-or-later**, selected to accommodate PyQt6's GPL
 licensing. No CLA, payment or hosted account is required.
 
-See [the 1.2 changes](docs/upgrade_1_2.md), [installation](docs/installation.md), [game mode](docs/gaming_mode.md),
+See [the navigation fixes](docs/navigation_1_3.md), [the 1.2 changes](docs/upgrade_1_2.md), [installation](docs/installation.md), [game mode](docs/gaming_mode.md),
 [dashboard](docs/web_dashboard.md), [architecture](docs/architecture.md) and
 [validation limits](docs/validation.md).

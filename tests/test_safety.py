@@ -107,3 +107,22 @@ def test_executing_event_is_emitted_only_after_authorization(tmp_path):
     with pytest.raises(InterruptedError):
         controller.execute(Action(kind='wait', args={'seconds':0.0}))
     assert safety.events.empty()
+
+
+@pytest.mark.parametrize('kind,args', [
+    ('browser_open', {'url':'https://www.netflix.com/', 'backend':'native'}),
+    ('browser_new_tab', {}), ('browser_tabs', {}), ('browser_switch_tab', {'tab_id':1}),
+    ('ensure_app', {'name':'store', 'strategy':'launch'}),
+])
+def test_new_navigation_paths_share_permission_tiers(kind, args):
+    action = Action(kind=kind, args=args)
+    assert requires_approval(action, 1)
+    assert not requires_approval(action, 2)
+    assert not requires_approval(action, 3)
+
+
+@pytest.mark.parametrize('kind,args', [('focus_window',{'hwnd':123}), ('app_list',{'query':'word'})])
+def test_sdk_window_discovery_and_focus_are_permission_checked(kind, args):
+    action = Action(kind=kind, args=args)
+    assert requires_approval(action, 1)
+    assert not requires_approval(action, 2)

@@ -31,6 +31,7 @@ def dpi_scale() -> float:
 
 @dataclass
 class Settings:
+    computer_use_engine: str = 'windows_use'
     tier: int = 2
     model: str = 'qwen2.5vl:7b'
     ollama_host: str = 'http://127.0.0.1:11434'
@@ -67,6 +68,8 @@ class Settings:
 
     def __post_init__(self):
         self.data_dir = Path(self.data_dir)
+        if self.computer_use_engine not in ('windows_use', 'native'):
+            raise ValueError('Unknown computer-use engine')
         if self.tier not in (1, 2, 3):
             raise ValueError('Permission tier must be 1, 2 or 3')
         if not (1 <= self.web_port <= 65535 and 0 <= self.max_steps <= 2147483647):

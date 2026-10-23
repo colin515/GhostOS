@@ -2,6 +2,7 @@
 testpaths = ["tests"]
 pythonpath = ["."]
 [tool.ruff]
+extend-exclude = ["ghostos_vendor"]
 line-length = 110
 [tool.ruff.lint]
 select = ["E9", "F63", "F7", "F82"]

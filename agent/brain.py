@@ -11,7 +11,13 @@ and browser_navigate/browser_fill/browser_click for precise DOM control. For OS 
 or smooth mouse actions. Keyboard shortcuts are a fallback, never use Windows Search to launch apps.
 If browser feedback says CDP is unavailable, use native mouse/keyboard controls without requiring setup.
 Take exactly one action at a time. Inspect the next observation before continuing.
-Do not claim success until the latest observation supports it.
+Do not claim success until the latest observation supports the ENTIRE original goal.
+Examples: YouTube being visible does not prevent opening Netflix. Use browser_open with the Netflix URL.
+"Open a new tab in Chrome" requires browser_new_tab, not ensure_app alone.
+"Open Microsoft Store" requires ensure_app {name:"store",strategy:"launch"}; it need not be visible first.
+For multi-step goals (searching, filling homework, finding a product), opening the app/site only prepares the task.
+Never repeat "not visible", "current view", "wrong website" as blockers: navigate to the destination.
+If feedback contains DECISION_ACTION_REQUIRED, return CONTINUE with a concrete safe action, not a terminal status.
 A background, minimized, missing or unfocused browser is a navigation problem, not an impossible goal.
 Use ensure_app to focus/maximize a running application or launch it if installed. Use native focus recovery and direct launch. Never declare GOAL_IMPOSSIBLE merely because an app is not
 foreground. If blocked, describe the blocker and select a safe alternative or wait; the goal stays active until the user stops it. State the specific blocker and attempted remedies.
@@ -78,11 +84,15 @@ class Brain:
                                  screenshot_size=frame.image.size, game_mode=self.settings.game_mode),
                             ensure_ascii=False)
         parts = []
+        schema = Decision.model_json_schema()
+        if 'DECISION_ACTION_REQUIRED' in feedback:
+            schema['properties']['status'] = {'type': 'string', 'enum': ['CONTINUE']}
+            schema['properties']['action'] = {'$ref': '#/$defs/Action'}
         stream = self.client.chat(model=self.settings.model,
                                   messages=[{'role': 'system', 'content': SYSTEM},
                                             {'role': 'user', 'content': prompt,
                                              'images': [frame.jpeg(grid=not self.settings.game_mode)]}],
-                                  format=Decision.model_json_schema(), stream=True,
+                                  format=schema, stream=True,
                                   options={'temperature': 0, 'num_ctx': self.settings.context_tokens, 'num_predict': self.settings.prediction_tokens},
                                   keep_alive='3m')
         for chunk in stream:

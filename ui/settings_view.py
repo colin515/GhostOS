@@ -27,6 +27,11 @@ class SettingsView(QDialog):
                             'Tier 3 · Auto-approve; UAC remains manual'])
         self.tier.setCurrentIndex(runtime.settings.tier - 1)
         form.addRow('Permissions', self.tier)
+        self.engine = QComboBox()
+        self.engine.addItem('Windows-Use · open-source local computer use', 'windows_use')
+        self.engine.addItem('GhostOS legacy vision planner', 'native')
+        self.engine.setCurrentIndex(0 if runtime.settings.computer_use_engine == 'windows_use' else 1)
+        form.addRow('Computer-use engine', self.engine)
         self.model = QLineEdit(runtime.settings.model)
         form.addRow('Local vision model', self.model)
         self.browser = QComboBox()
@@ -98,7 +103,7 @@ class SettingsView(QDialog):
         self.runtime_limit.setSpecialValueText('Unlimited')
         self.runtime_limit.setValue(runtime.settings.max_runtime)
         form.addRow('Runtime limit (seconds)', self.runtime_limit)
-        ai_widgets = (self.tier, self.model, self.browser, self.cdp, self.game, self.width, self.output, self.steps, self.runtime_limit)
+        ai_widgets = (self.engine, self.tier, self.model, self.browser, self.cdp, self.game, self.width, self.output, self.steps, self.runtime_limit)
         for row in range(form.rowCount()):
             field = form.itemAt(row, QFormLayout.ItemRole.FieldRole)
             if field and field.widget():
@@ -185,7 +190,7 @@ class SettingsView(QDialog):
         from dataclasses import replace
         try:
             candidate = replace(self.runtime.settings, tier=self.tier.currentIndex() + 1,
-                                model=self.model.text().strip(), cdp_url=self.cdp.text().strip(),
+                                model=self.model.text().strip(), computer_use_engine=self.engine.currentData(), cdp_url=self.cdp.text().strip(),
                                 browser_channel=self.browser.currentText(),
                                 game_mode=self.game.isChecked(), voice_enabled=self.voice.isChecked(),
                                 narrate_actions=self.narrate.isChecked(), tts_enabled=self.tts.isChecked(),

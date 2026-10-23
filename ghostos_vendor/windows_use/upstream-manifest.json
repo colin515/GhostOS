@@ -1,0 +1,123 @@
+{
+  "repository": "https://github.com/Jeomon/Windows-Use",
+  "commit": "582a5669e9251372beb63baf39dac453693ff0d8",
+  "version": "0.8.1",
+  "files": [
+    {
+      "path": "LICENSE",
+      "upstream_blob_sha": "c44aebb3f495eb3acdcbd2a25a42422995216c53"
+    },
+    {
+      "path": "windows_use/agent/desktop/config.py",
+      "upstream_blob_sha": "65f9648a6bef8c21ede6490736d5d3fcd11b0720"
+    },
+    {
+      "path": "windows_use/agent/desktop/service.py",
+      "upstream_blob_sha": "f3724fd76baa9a697d6945aabf7e3af945061a6f"
+    },
+    {
+      "path": "windows_use/agent/desktop/utils.py",
+      "upstream_blob_sha": "fea32c622d3623fd28fed3309b63a4ebfc679637"
+    },
+    {
+      "path": "windows_use/agent/desktop/views.py",
+      "upstream_blob_sha": "313f24f5a7f6bdc396c5f5f6db5a3b7326967922"
+    },
+    {
+      "path": "windows_use/agent/loop.py",
+      "upstream_blob_sha": "8cb0395f0439f783a04f6c1e1ab48fef0e34f1ed"
+    },
+    {
+      "path": "windows_use/agent/tree/cache_utils.py",
+      "upstream_blob_sha": "d4017efc30fb1303892d77d6d26a2ae2e526336d"
+    },
+    {
+      "path": "windows_use/agent/tree/config.py",
+      "upstream_blob_sha": "74b64b49b1fd690a4ad18e1c74618a15c5e3bd11"
+    },
+    {
+      "path": "windows_use/agent/tree/service.py",
+      "upstream_blob_sha": "ef65191add3578370c499f8be20ebfa17adef5b5"
+    },
+    {
+      "path": "windows_use/agent/tree/utils.py",
+      "upstream_blob_sha": "1c1a18ea3a42c61fa70b69a59b2077a14749c0bd"
+    },
+    {
+      "path": "windows_use/agent/tree/views.py",
+      "upstream_blob_sha": "8c3c182a537b37a9cd1ba5bba6d987d256b27b2d"
+    },
+    {
+      "path": "windows_use/messages/__init__.py",
+      "upstream_blob_sha": "24af8b70ab9e69fe2e714027a3966b06bd0acfb0"
+    },
+    {
+      "path": "windows_use/messages/service.py",
+      "upstream_blob_sha": "1fca6547488979bc41a202b452fbc95d395d503f"
+    },
+    {
+      "path": "windows_use/providers/base.py",
+      "upstream_blob_sha": "48797883391fd662b7efcddf21819b839ee9c51e"
+    },
+    {
+      "path": "windows_use/providers/events.py",
+      "upstream_blob_sha": "dae1e30d6f82bba506f7bbc86b996f3e8fb06695"
+    },
+    {
+      "path": "windows_use/providers/ollama/__init__.py",
+      "upstream_blob_sha": "730ba61d731b9d74779cec0680e32b097b5afa57"
+    },
+    {
+      "path": "windows_use/providers/ollama/llm.py",
+      "upstream_blob_sha": "aff0df6bc1c6944202b40d8106b9e90981cfb945"
+    },
+    {
+      "path": "windows_use/providers/views.py",
+      "upstream_blob_sha": "0b47d0ac800905ea11e7932984f9ffd81d6064ef"
+    },
+    {
+      "path": "windows_use/tools/__init__.py",
+      "upstream_blob_sha": "9c0bc7e7f16c3bbee1529acd3dc423fef7d6e62a"
+    },
+    {
+      "path": "windows_use/tools/service.py",
+      "upstream_blob_sha": "56be067e6f60afaf3dedc9a31ae78ea8127c3424"
+    },
+    {
+      "path": "windows_use/uia/__init__.py",
+      "upstream_blob_sha": "83901ef7679eafb6cb426fdaff893746d3007639"
+    },
+    {
+      "path": "windows_use/uia/controls.py",
+      "upstream_blob_sha": "893fae9978d7dd7eacc7b560777fc8dcf7b387f7"
+    },
+    {
+      "path": "windows_use/uia/core.py",
+      "upstream_blob_sha": "f2d50c9033fea72e49bd171c1055583a030a2dfe"
+    },
+    {
+      "path": "windows_use/uia/enums.py",
+      "upstream_blob_sha": "c3d0af5079a2c1a94095fe62e3cda0fca1a6d9eb"
+    },
+    {
+      "path": "windows_use/uia/events.py",
+      "upstream_blob_sha": "c5c23afbc3226da05d45c2c9ddd5de5a168760cf"
+    },
+    {
+      "path": "windows_use/uia/exceptions.py",
+      "upstream_blob_sha": "9bda18cce6b3990618ac7bed9c1c8adf8aa45867"
+    },
+    {
+      "path": "windows_use/uia/patterns.py",
+      "upstream_blob_sha": "c23e55c261395fb1b9ab7b1e8d1181463c13ad47"
+    },
+    {
+      "path": "windows_use/vdm/__init__.py",
+      "upstream_blob_sha": "0fc537e187b8a5d5741f7e54a4e5197b8e88f17e"
+    },
+    {
+      "path": "windows_use/vdm/core.py",
+      "upstream_blob_sha": "d629b35ab1894a0d1554e0645569b96887334f42"
+    }
+  ]
+}

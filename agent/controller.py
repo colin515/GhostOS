@@ -27,29 +27,20 @@ class Controller:
         kind, a = action.kind, action.args
         if kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click'):
             self.focus_guard.ensure_external()
+        if kind == 'app_list':
+            from agent.windows_apps import WindowsApps
+            apps = WindowsApps(self.safety.stop).registered_apps()
+            query = a['query'].casefold()
+            return json.dumps({'installed_apps':[name for name in apps if query in name.casefold()][:100]})
+        if kind == 'focus_window':
+            from agent.window_focus import focus_window
+            hwnd = focus_window(a['hwnd'], self.safety.stop)
+            return json.dumps({'verified':True, 'foreground':True, 'hwnd':hwnd})
         if kind == 'ensure_app':
             from agent.windows_apps import WindowsApps
             return WindowsApps(self.safety.stop).ensure(a['name'], a['strategy'], self.type_unicode)
         if kind.startswith('browser_'):
-            try:
-                return self.web.execute(action)
-            except (InterruptedError, PermissionError):
-                raise
-            except Exception as exc:
-                self.web.native_fallback = True
-                self.web.close()
-                self.safety.events.put({'kind': 'BROWSER_FALLBACK', 'message': f'CDP unavailable: {exc}. Using mouse and keyboard. Would you like setup instructions?', 'help_offer': True}, timeout=0.2)
-                from agent.windows_apps import WindowsApps
-                app = 'chrome' if self.settings.browser_channel == 'chrome' else 'edge'
-                apps = WindowsApps(self.safety.stop)
-                if kind == 'browser_navigate':
-                    path = apps.installed_path(app)
-                    if path is None:
-                        raise FileNotFoundError(f'{app} is not installed')
-                    subprocess.Popen([str(path), a['url']], shell=False)
-                    apps._wait_for_window(app)
-                    return 'Native browser opened the URL. CDP disabled for this run; use the visible mouse, UIA and keyboard. Inspect the new screenshot.'
-                return 'CDP failed; outcome uncertain. Do not replay a form submission. Use fresh screenshot, mouse and keyboard controls. Browser selectors are unavailable.' 
+            return self.browser_action(action)
         if kind == 'shell':
             return self.shell(a['script'], a['timeout'])
         if kind == 'wait':
@@ -133,6 +124,74 @@ class Controller:
         else:
             raise ValueError('Unknown action')
         return f'{kind} executed'
+
+    def native_browser(self):
+        from agent.native_browser import NativeBrowser
+        return NativeBrowser(self.settings, self.safety.stop, self.type_unicode)
+
+    def browser_action(self, action):
+        kind, a = action.kind, action.args
+        navigation = kind in ('browser_open', 'browser_navigate', 'browser_new_tab')
+        backend = a.get('backend', 'auto')
+        if navigation and backend == 'native':
+            result = self.native_browser().open(a.get('url', ''), a.get('new_tab', kind == 'browser_new_tab'))
+            self.web.native_fallback = True
+            return result
+        if kind == 'browser_new_tab' and backend == 'auto' and not self.web.page and not getattr(self.settings, 'cdp_url', ''):
+            try:
+                native = self.native_browser()
+                if native.apps.windows(native.app):
+                    result = native.open(new_tab=True)
+                    self.web.native_fallback = True
+                    return result
+            except (InterruptedError, PermissionError):
+                raise
+            except Exception:
+                pass
+        # Respect an existing personal Chrome/Edge tab before creating a managed profile.
+        if kind == 'browser_open' and backend == 'auto' and not self.web.page and not a['new_tab'] and not getattr(self.settings, 'cdp_url', ''):
+            try:
+                reused = self.native_browser().open(a['url'], reuse_only=True)
+                if reused:
+                    self.web.native_fallback = True
+                    return reused
+            except (InterruptedError, PermissionError):
+                raise
+            except Exception:
+                pass  # UIA unavailable: CDP still provides deterministic URL navigation.
+        if self.web.native_fallback and backend != 'cdp':
+            if navigation:
+                return self.native_browser().open(a.get('url', ''), a.get('new_tab', kind == 'browser_new_tab'))
+            if kind in ('browser_snapshot', 'browser_tabs'):
+                return self.native_browser().snapshot()
+            return 'Native browser mode. DOM selectors are unavailable; inspect fresh UIA/screenshot and use mouse controls. No form action was executed.'
+        if backend == 'cdp':
+            self.web.native_fallback = False
+        try:
+            return self.web.execute(action)
+        except (InterruptedError, PermissionError):
+            raise
+        except Exception as exc:
+            self.web.native_fallback = True
+            self.web.close()
+            self.safety.events.put({'kind': 'BROWSER_FALLBACK', 'message': f'CDP unavailable: {exc}. Using mouse and keyboard. Would you like setup instructions?', 'help_offer': True}, timeout=0.2)
+            if navigation:
+                return self.native_browser().open(a.get('url', ''), a.get('new_tab', kind == 'browser_new_tab'))
+            # Never replay uncertain form writes/clicks through another transport.
+            return 'CDP failed; outcome uncertain. Do not replay a form submission. Use fresh screenshot, mouse and keyboard controls. Browser selectors are unavailable.'
+
+    def navigation_evidence(self, navigation):
+        """Read-only completion check: never focus a window or send input from this path."""
+        if navigation.url or navigation.new_tab:
+            if self.web.page:
+                return self.web.snapshot(verified=True)
+            import win32gui
+            native = self.native_browser()
+            hwnd = win32gui.GetForegroundWindow()
+            if hwnd in native.apps.windows(native.app):
+                _, url = native.chrome(hwnd)
+                return json.dumps({'verified': True, 'url': url})
+        return None
 
     def mouse_driver(self):
         if self.mouse is None:

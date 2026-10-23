@@ -60,27 +60,76 @@ class WebEngine:
         self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
         self.page.set_default_timeout(8000)
 
-    def snapshot(self):
+    def tabs(self):
+        output = []
+        for i, page in enumerate(self.context.pages[:100]):
+            try:
+                if not page.is_closed():
+                    output.append({'id': i, 'title': page.title()[:200], 'url': page.url, 'active': page == self.page})
+            except Exception:
+                continue  # An unrelated tab can close while the inventory is read.
+        return output
+
+    def snapshot(self, **evidence):
         if not self.page:
             return ''
-        text = self.page.locator('body').inner_text(timeout=5000)[:5000]
-        controls = self.page.locator('input,button,select,textarea,a').evaluate_all('''els => els.slice(0,80).map(e => ({
-            tag:e.tagName, type:e.type || '', name:e.name || '', id:e.id || '',
-            label:e.getAttribute('aria-label') || (e.innerText || '').slice(0,80)}))''')
-        return json.dumps({'url': self.page.url, 'text': text, 'controls': controls})[:7000]
+        # Metadata survives blank pages, loading pages and missing body elements.
+        data = {'transport': 'cdp', 'url': self.page.url, 'tabs': self.tabs(), **evidence}
+        try:
+            data['text'] = self.page.locator('body').inner_text(timeout=2000)[:5000]
+            data['controls'] = self.page.locator('input,button,select,textarea,a').evaluate_all('''els => els.slice(0,80).map(e => ({
+                tag:e.tagName, type:e.type || '', name:e.name || '', id:e.id || '',
+                label:e.getAttribute('aria-label') || (e.innerText || '').slice(0,80)}))''')
+        except Exception as exc:
+            data['observation_warning'] = str(exc)[:300]
+        # Truncate fields, never serialized JSON (callers verify this evidence).
+        return json.dumps(data, ensure_ascii=False)
 
     def execute(self, action):
         self.start()
-        a = action.args
-        if action.kind == 'browser_navigate':
-            self.page.goto(a['url'], wait_until='domcontentloaded', timeout=20000)
+        a, evidence = action.args, {}
+        if action.kind in ('browser_navigate', 'browser_open'):
+            from agent.navigation import same_destination
+            reused, created = False, False
+            if action.kind == 'browser_open':
+                if a['new_tab']:
+                    self.page = self.context.new_page()
+                    created = True
+                else:
+                    for page in self.context.pages:
+                        if not page.is_closed() and same_destination(page.url, a['url']):
+                            self.page, reused = page, True
+                            break
+            if not reused:
+                self.page.goto(a['url'], wait_until='domcontentloaded', timeout=20000)
+            self.page.bring_to_front()
+            evidence = {'verified': same_destination(self.page.url, a['url']),
+                        'created_tab': created, 'reused_tab': reused}
+        elif action.kind == 'browser_new_tab':
+            before = len(self.context.pages)
+            self.page = self.context.new_page()
+            self.page.bring_to_front()
+            evidence = {'created_tab': len(self.context.pages) > before, 'verified': True}
+        elif action.kind == 'browser_switch_tab':
+            pages = self.context.pages
+            if a['tab_id'] >= len(pages) or pages[a['tab_id']].is_closed():
+                raise ValueError('Stale tab ID; refresh browser_tabs')
+            self.page = pages[a['tab_id']]
+            self.page.bring_to_front()
         elif action.kind == 'browser_fill':
             self.page.locator(a['selector']).fill(a['value'])
         elif action.kind == 'browser_click':
+            # A click may open a new tab. Track it instead of continuing on the old page.
+            before = set(self.context.pages)
             self.page.locator(a['selector']).click()
-        elif action.kind != 'browser_snapshot':
+            self.page.wait_for_timeout(150)
+            opened = [page for page in self.context.pages if page not in before and not page.is_closed()]
+            if opened:
+                self.page = opened[-1]
+                self.page.bring_to_front()
+        elif action.kind not in ('browser_snapshot', 'browser_tabs'):
             raise ValueError('Unknown browser action')
-        return self.snapshot()
+        return self.snapshot(**evidence)
 
     def close(self):
         # Disconnect only. Closing context/browser would destroy the user's completed task.

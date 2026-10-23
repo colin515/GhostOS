@@ -1,4 +1,4 @@
-# Installation · GhostOS 1.2.3
+# Installation · GhostOS 1.3.0
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ only. Internet is used to install packages and download models; subsequent model
 inference, screenshots and speech transcription stay local. Browser tasks use
 the network addresses requested by the user.
 
-Download **GhostOS_Installer_v1.2.3.exe** from the
+Download **GhostOS_Installer_v1.3.0.exe** from the
 [latest GitHub Release](https://github.com/colin515/GhostOS/releases/latest), run
 it, and open GhostOS from the Start Menu. Choose the `.exe` under **Assets**;
 the source ZIP is for developers. No Python installation is needed. The
@@ -121,7 +121,7 @@ border can start and close without moving the mouse, typing or calling Ollama.
 
 ## Updating or repairing an installation that will not open
 
-Run the newest `GhostOS_Installer_v1.2.3.exe` directly. Opening the old app or
+Run the newest `GhostOS_Installer_v1.3.0.exe` directly. Opening the old app or
 uninstalling it first is not required. Setup keeps the same AppId, reuses its
 previous installation folder and replaces application files. Windows Restart
 Manager closes GhostOS processes holding those files, including hidden ones.
@@ -149,7 +149,7 @@ runtime, upgrades without `/DIR`, and checks process shutdown, the installed
 version, real desktop startup, corrupted-settings recovery, same-version repair,
 one Installed apps entry and preservation of user files through uninstallation.
 
-Version 1.2.3 also fixes a Windows desktop startup crash caused by calling
+The installer retains the fix for a Windows desktop startup crash caused by calling
 nonexistent pywin32 window-property wrappers. It now uses native SetPropW/GetPropW
 with explicit 64-bit handle types. A native Windows regression test checks these
 properties, and the installer pipeline opens the actual installed desktop.

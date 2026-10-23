@@ -1,4 +1,4 @@
-# Validation · GhostOS 1.2.3
+# Validation · GhostOS 1.3.0
 
 Automated unit/regression coverage runs on Linux and Windows. The release pipeline
 also installs all Windows dependencies, freezes the app, checks frozen imports,
@@ -6,11 +6,23 @@ creates/closes the screen indicator, synthesizes bundled neural speech without a
 audio device, and exercises actual native mouse input in a disposable Windows
 window. The cursor and previous foreground window are restored after that probe.
 A disposable Edge profile also exercises CDP navigation, a local form fill and
-click, disconnect/reconnect and preservation of the completed result tab.
+click, existing-tab reuse from a different current page, verified new tabs,
+explicit tab activation, native UIA/address-bar navigation, disconnect/reconnect
+and preservation of the completed result tab.
 Inno Setup compilation and a real silent install/uninstall must succeed before
 GitHub publishes the downloadable installer.
 
 Regression coverage includes:
+
+- Windows-Use local tool calls and structured output, blocked unsupported tools,
+  single-image prompts, coordinate scaling and bounded advisory loop memory;
+- engine setting migration, permission checks on SDK-derived actions and exact
+  installed-app launch with command-injection strings rejected;
+
+- the supplied Microsoft Store, Chrome new-tab and Netflix failure transcripts;
+- direct navigation despite an unusable model, wrong-site rejection and tab reuse;
+- false success at focus/site-open rejected for new tabs and multi-step goals;
+- Store registered-URI activation, URL host/path verification, safe fallback order;
 
 - unlimited default execution beyond 1,000 actions, optional limits and migration;
 - focus blockers remaining active after recovery, native app launch argument arrays;

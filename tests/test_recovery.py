@@ -80,3 +80,40 @@ def test_installed_app_launch_uses_exact_path_without_shell(monkeypatch, tmp_pat
     monkeypatch.setattr('subprocess.Popen', lambda args, **kw: calls.append((args, kw)))
     assert app.ensure('chrome', 'launch') == 'Chrome focused'
     assert calls == [([str(executable)], {'shell':False})]
+
+
+def test_microsoft_store_launch_uses_registered_uri_not_screen_search(monkeypatch):
+    app = WindowsApps(threading.Event())
+    monkeypatch.setattr(app, '_check', lambda: None)
+    monkeypatch.setattr(app, 'focus', lambda name: (_ for _ in ()).throw(LookupError('not visible')))
+    monkeypatch.setattr(app, 'windows', lambda name: [])
+    monkeypatch.setattr(app, 'installed_path', lambda name: (_ for _ in ()).throw(AssertionError('Store is a packaged app')))
+    monkeypatch.setattr(app, '_wait_for_window', lambda name, timeout: 'Store focus verified')
+    calls = []
+    import agent.windows_apps
+    monkeypatch.setattr(agent.windows_apps.os, 'startfile', lambda uri: calls.append(uri), raising=False)
+    assert app.ensure('Microsoft Store', 'launch') == 'Store focus verified'
+    assert calls == ['ms-windows-store://home']
+    assert canonical_app('Windows Store') == 'store'
+
+
+def test_registered_apps_use_exact_installed_names_and_native_shell_activation(monkeypatch):
+    import sys
+    app = WindowsApps(threading.Event())
+    monkeypatch.setattr(app, '_check', lambda: None)
+    monkeypatch.setattr(app, 'registered_apps', lambda: {'sample editor':'Vendor.Sample_123!App'})
+    visible = []
+    gui = SimpleNamespace(EnumWindows=lambda callback, _: [callback(hwnd,None) for hwnd in visible],
+        GetWindowText=lambda hwnd:'Document - Sample Editor', IsWindowVisible=lambda hwnd:True)
+    monkeypatch.setitem(sys.modules, 'win32gui', gui)
+    calls = []
+    import agent.windows_apps
+    import agent.window_focus
+    monkeypatch.setattr(agent.windows_apps.os, 'startfile', lambda target:(calls.append(target), visible.append(42)), raising=False)
+    monkeypatch.setattr(agent.window_focus, 'focus_window', lambda *a, **kw:42)
+    monkeypatch.setattr(agent.window_focus, 'is_agent_window', lambda hwnd:False)
+    assert 'verified' in app.ensure('Sample Editor', 'launch')
+    assert calls == ['shell:AppsFolder\\Vendor.Sample_123!App']
+    with pytest.raises(FileNotFoundError, match='exact installed'):
+        app.ensure('sample editor; Remove-Item C:/', 'launch')
+    assert len(calls) == 1

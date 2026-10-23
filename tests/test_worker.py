@@ -1,5 +1,6 @@
 from contextlib import nullcontext
 import queue
+import json
 import threading
 from types import SimpleNamespace
 import pytest
@@ -36,6 +37,12 @@ def harness(monkeypatch, tmp_path):
         def execute(self, action):
             self.safety.authorize(action)
             actions.append(action)
+            if action.kind == 'browser_open':
+                return json.dumps({'verified': True, 'url': action.args['url'], 'created_tab': action.args['new_tab']})
+            if action.kind == 'browser_new_tab':
+                return json.dumps({'verified': True, 'created_tab': True})
+            if action.kind == 'ensure_app':
+                return json.dumps({'verified': True, 'app': action.args['name'], 'foreground': True})
             return 'done'
         def close(self):
             pass
@@ -120,12 +127,13 @@ def test_exhausted_recovery_keeps_goal_active_until_success(harness, monkeypatch
     assert [a.kind for a in actions] == ['focus', 'wait']
 
 
-def test_explicit_chrome_goal_focuses_app_before_inference(harness):
+def test_explicit_chrome_url_navigates_and_verifies_before_inference(harness):
     _, actions, decisions, run = harness
     decisions.append(Decision(status='GOAL_SATISFIED', summary='ready'))
     events = run('Open galaxus.ch in Google Chrome')
-    assert actions[0].kind == 'ensure_app'
-    assert actions[0].args == {'name':'chrome', 'strategy':'focus'}
+    assert actions[0].kind == 'browser_open'
+    assert actions[0].args['url'] == 'https://galaxus.ch'
+    assert len(decisions) == 1  # Does not need a model to navigate.
     assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
 
 
@@ -158,3 +166,64 @@ def test_default_unlimited_allows_more_than_one_thousand_actions(harness):
     events = run()
     assert len(actions) == 1100
     assert events[-2]['status'] == 'GOAL_SATISFIED'
+
+
+@pytest.mark.parametrize('goal,kind,target', [
+    ('I would like you to just open Microsoft Store', 'ensure_app', 'store'),
+    ('Could you open a new tab in Google Chrome?', 'browser_new_tab', None),
+    ('Okay, Open Google Chrome and Open In Google Chrome, the Netflix website.', 'browser_open', 'https://www.netflix.com/'),
+])
+def test_logged_failures_execute_without_model_veto(harness, goal, kind, target):
+    _, actions, decisions, run = harness
+    # Deliberately unusable model: simple navigation must work independently of it.
+    decisions.append(Decision(status='GOAL_IMPOSSIBLE', summary='Only YouTube is visible'))
+    events = run(goal)
+    assert len(actions) == 1 and actions[0].kind == kind
+    if target:
+        assert target in actions[0].args.values()
+    assert len(decisions) == 1
+    assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
+
+
+def test_complex_goal_cannot_finish_at_site_open(harness):
+    settings, actions, decisions, run = harness
+    settings.max_steps = 8
+    decisions.extend([
+        Decision(status='GOAL_SATISFIED', summary='Chrome is ready'),
+        Decision(status='CONTINUE', summary='Search for the requested product',
+                 action=Action(kind='browser_fill', args={'selector':'#search', 'value':'Powerbank 10000mah'})),
+        Decision(status='GOAL_SATISFIED', summary='Search field filled'),
+        Decision(status='CONTINUE', summary='Submit search', action=Action(kind='browser_click', args={'selector':'#search-submit'})),
+        Decision(status='GOAL_SATISFIED', summary='Matching products visible'),
+        Decision(status='GOAL_SATISFIED', summary='Verified matching products visible'),
+    ])
+    events = run('Open galaxus.ch in Chrome and search for a Powerbank with 10000mah')
+    assert [a.kind for a in actions] == ['browser_open', 'browser_fill', 'browser_click']
+    assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
+    assert any(e['kind'] == 'RECOVERY' for e in events)
+
+
+def test_unverified_focus_cannot_finish_new_tab_goal(harness, monkeypatch):
+    import agent.controller
+    settings, actions, decisions, run = harness
+    settings.max_steps = 6
+    def focus_only(self, action):
+        actions.append(action)
+        return json.dumps({'verified': True, 'app':'chrome', 'foreground': True})
+    monkeypatch.setattr(agent.controller.Controller, 'execute', focus_only)
+    decisions.extend([Decision(status='GOAL_SATISFIED', summary='Chrome is focused') for _ in range(3)])
+    events = run('Open a new tab in Chrome')
+    assert not any(e.get('status') == 'GOAL_SATISFIED' for e in events)
+    assert any(e.get('status') == 'MAX_STEPS_EXCEEDED' for e in events)
+
+
+def test_navigation_permission_denial_is_not_retried(harness, monkeypatch):
+    import agent.controller
+    _, actions, _, run = harness
+    def decline(self, action):
+        actions.append(action)
+        raise PermissionError('Declined')
+    monkeypatch.setattr(agent.controller.Controller, 'execute', decline)
+    events = run('Open Microsoft Store')
+    assert len(actions) == 1
+    assert any(e.get('status') == 'PERMISSION_DENIED' for e in events)

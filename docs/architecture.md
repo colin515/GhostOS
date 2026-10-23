@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.2.3
+# Architecture · GhostOS 1.3.0
 
 The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
 LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,
@@ -33,6 +33,23 @@ It does not request elevation or bypass execution policy.
 
 ## Navigation engines
 
+The default `WindowsUseBrain` integrates a pinned local subset of the MIT-licensed
+Windows-Use SDK: cached UIA tree/window inventory, Ollama tool-call/message handling
+and advisory loop detection. Cloud providers, telemetry and upstream execution
+are excluded. An adapter converts UIA targets into screenshot coordinates before
+inference. Tool-capable models use function calls; existing local vision models
+use the SDK structured response path. Each result becomes a validated GhostOS
+Action and passes Controller/WorkerSafety. This retains unlimited execution and
+avoids an upstream loop bypassing approvals. The AI gear also offers the legacy
+planner; Game Mode keeps its specialized planner. Upstream source identities and
+MIT/Apache notices are bundled under `ghostos_vendor/windows_use`.
+
+`app_list` reuses the SDK's Windows installed-app reader through a hidden, fixed,
+read-only PowerShell inventory query. Exact installed display names can launch
+through `shell:AppsFolder`; model text is never interpolated into that command.
+`focus_window` uses a listed native handle and refuses GhostOS-owned handles.
+
+
 Browser actions use a loopback CDP connection to Chrome/Edge first. A separate
 GhostOS browser profile is provisioned automatically, or the user can supply a
 loopback endpoint. A read-only DOM excerpt provides selector context. Failure
@@ -65,7 +82,7 @@ unlimited; other saved limits are preserved. Scheduled task execution time is
 also unlimited. Individual network calls, commands, microphone recordings and
 approval requests retain timeouts so Stop and error reporting remain useful.
 
-A model GOAL_IMPOSSIBLE answer becomes a BLOCKED progress event. Native focus,
+A model GOAL_IMPOSSIBLE answer becomes a recovery progress event, not a terminal status. Native focus,
 direct launch and fresh observations are attempted, followed by cancellable
 cooldowns and replanning. Exhausting the initial recovery ledger does not end
 the task. Repeated invalid/model transport replies retry with a capped backoff.
@@ -76,7 +93,27 @@ outcomes. Persistence is not permission to bypass consent or Windows UAC.
 
 Validated YAML recipes and explicit `/action JSON` bypass model inference but
 share permission checks. They report RECIPE_COMPLETED/COMMAND_COMPLETED, not
-visually verified success. Natural-language success is a model assessment.
+visually verified success. Explicit navigation is routed by `navigation.py` before
+inference, with three distinct browser strategies (automatic tab reuse/CDP,
+native address-bar navigation, explicit CDP). `windows_apps.py` includes Store
+URI activation and Windows 10 ApplicationFrameHost child-process discovery.
+`browser_open`, `browser_new_tab`, `browser_tabs` and `browser_switch_tab` have
+validated arguments and share the permission boundary with all other actions.
+
+Native tab reuse reads browser chrome through UIA, excludes webpage documents,
+selects candidate tabs and verifies their actual URL. Address-bar navigation
+verifies the foreground window and focused editor ownership before typing.
+Tab creation verifies a count increase. CDP inventories/activates existing tabs,
+creates real tabs, and tracks newly opened pages after clicks. Structured evidence
+is valid JSON even when DOM text is unavailable; merely dispatching input does
+not prove success. Uncertain form operations are never replayed as navigation.
+
+Pure navigation finishes only with matching evidence. For complex goals, the
+prerequisite remains separate: success at app focus/site open is rejected, at
+least one subsequent task action must succeed, and a fresh-observation completion
+check must reassess the whole original goal. After a premature terminal verdict,
+the next inference schema requires an action. General task completion still
+relies on the local model's visual/DOM assessment and is not guaranteed.
 
 ## Responsiveness and local inference
 

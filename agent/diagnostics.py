@@ -7,7 +7,7 @@ from config import VERSION, RESOURCE_DIR, dpi_scale
 
 def diagnostics():
     modules = ('PyQt6.QtWidgets', 'fastapi', 'uvicorn', 'ollama', 'playwright', 'cv2', 'PIL',
-               'piper', 'onnxruntime', 'sounddevice', 'psutil', 'webrtcvad', 'pynput', 'uiautomation', 'win32api', 'faster_whisper', 'pyttsx3')
+               'ghostos_vendor.windows_use.providers.ollama', 'piper', 'onnxruntime', 'sounddevice', 'psutil', 'webrtcvad', 'pynput', 'uiautomation', 'win32api', 'faster_whisper', 'pyttsx3')
     available, errors = {}, {}
     windows_only = {'pynput', 'uiautomation', 'win32api'}
     for name in modules:

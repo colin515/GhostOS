@@ -286,9 +286,10 @@ def action_narration(action):
         return verb + args.get('name', 'the application') + '.'
     return {'hotkey': 'Using keyboard navigation.', 'type_text': 'Entering text.',
             'click': 'Selecting a control.', 'ui_click': 'Selecting a control.',
-            'browser_navigate': 'Opening the website.', 'browser_fill': 'Filling in the field.',
+            'browser_open': 'Opening the requested website.', 'browser_new_tab': 'Opening a new tab.',
+            'browser_switch_tab': 'Switching browser tabs.', 'browser_navigate': 'Opening the website.', 'browser_fill': 'Filling in the field.',
             'browser_click': 'Selecting the page control.', 'shell': 'Running the approved command.',
-            'focus': 'Restoring the application window.', 'open_app': 'Opening the application.',
+            'focus_window': 'Switching to the requested window.', 'focus': 'Restoring the application window.', 'open_app': 'Opening the application.',
             'template_click': 'Selecting the visual target.', 'game_move': 'Adjusting the camera.',
             'game_key': 'Moving in the game.', 'game_click': 'Using the game control.'}.get(kind, '')
 

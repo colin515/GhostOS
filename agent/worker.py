@@ -1,4 +1,4 @@
-"""Observe, execute, verify; terminal failure requires a finite recovery history."""
+"""Execute explicit navigation first, then observe, act and verify the full goal."""
 from __future__ import annotations
 from pathlib import Path
 import os
@@ -20,7 +20,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
             if kind not in ('FRAME', 'INFERENCE'):
                 raise RuntimeError('Event channel overloaded')
 
-    controller = None
+    controller = brain = None
     deadline = time.monotonic() + settings.max_runtime if settings.max_runtime else float('inf')
     try:
         from config import enable_dpi_awareness
@@ -36,8 +36,10 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
         from agent.ui_tree import UITree, uia_context
         from agent.controller import Controller
         from agent.brain import Brain
+        from agent.navigation import Navigation
+        navigation = Navigation.parse(goal, settings.game_mode)
         recovery = Recovery(goal, settings.game_mode)
-        if recovery.app == 'chrome' and hasattr(settings, 'browser_channel'):
+        if navigation.app == 'chrome' and hasattr(settings, 'browser_channel'):
             from dataclasses import replace
             settings = replace(settings, browser_channel='chrome')
         safety = WorkerSafety(settings, stop, events, answers)
@@ -57,33 +59,10 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
         feedback, browser_state, inference_errors, stalls = '', '', 0, 0
         last_frame_time = 0.0
         with uia_context():
-            if autonomous and recovery.app:
-                # Resolve focus/installation before spending tokens analysing the wrong application.
-                for _ in range(2):
-                    safety.check()
-                    if time.monotonic() >= deadline:
-                        emit('STATUS', status='MAX_RUNTIME_EXCEEDED')
-                        return
-                    if recovery.attempt(controller, emit, 'Preparing the application requested in your goal'):
-                        break
-                feedback = recovery.context()
-                if recovery.app in ('chrome', 'edge'):
-                    import re
-                    match = re.search(r'(?<![\w@./])(?:https?://)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:/[^\s<>"\']*)?', goal or '')
-                    if match:
-                        from agent.models import Action
-                        url = match.group(0).rstrip('.,;!?')
-                        if not url.startswith(('https://', 'http://')):
-                            url = 'https://' + url
-                        try:
-                            browser_state = str(controller.execute(Action(kind='browser_navigate', args={'url':url})))
-                            emit('RESULT', message=browser_state[:4000])
-                        except (PermissionError, InterruptedError):
-                            raise
-                        except Exception as exc:
-                            emit('WARNING', message=f'Browser preflight: {exc}. Replanning with native controls.')
             brain = None
             step = -1
+            substantive_actions = 0
+            completion_challenge = False
             while not stop.is_set():
                 step += 1
                 if settings.max_steps and step >= settings.max_steps:
@@ -93,6 +72,28 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 if time.monotonic() > deadline:
                     emit('STATUS', status='MAX_RUNTIME_EXCEEDED')
                     return
+                if autonomous:
+                    prerequisite = navigation.next_action()
+                    if prerequisite:
+                        emit('PLAN', message='Opening the requested destination directly and verifying the result')
+                        emit('ACTION', step=step + 1, action=prerequisite.model_dump(), navigation=True)
+                        try:
+                            result = controller.execute(prerequisite)
+                            navigation.record(result)
+                            feedback = str(result)[:4000] + navigation.context()
+                            if prerequisite.kind.startswith('browser_'):
+                                browser_state = str(result)
+                            emit('RESULT', message=str(result)[:4000])
+                            if navigation.simple and navigation.verified:
+                                emit('STATUS', status='GOAL_SATISFIED', message=navigation.success_message())
+                                return
+                        except (InterruptedError, PermissionError):
+                            raise
+                        except Exception as exc:
+                            navigation.record(None)
+                            feedback = f'Navigation attempt {navigation.attempts}: {type(exc).__name__}: {exc}' + navigation.context()
+                            emit('RECOVERY', message=feedback[:1200])
+                        continue
                 frame = vision.capture()
                 controller.frame = frame
                 emit('FRAME', image=frame.base64(grid=not settings.game_mode), step=step)
@@ -108,8 +109,13 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 else:
                     try:
                         if brain is None:
-                            brain = Brain(settings)
-                        decision = brain.next(goal, frame, ui, browser_state, feedback, emit)
+                            if getattr(settings, 'computer_use_engine', 'native') == 'windows_use' and not settings.game_mode:
+                                from agent.windows_use_engine import WindowsUseBrain
+                                brain = WindowsUseBrain(settings)
+                                emit('ENGINE', message='Windows-Use SDK · local Ollama · GhostOS permissions')
+                            else:
+                                brain = Brain(settings)
+                        decision = brain.next(goal, frame, ui, browser_state, feedback + navigation.context(), emit)
                         inference_errors = 0
                     except (InterruptedError, PermissionError):
                         raise
@@ -120,10 +126,8 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                         if stop.wait(min(30, 2 ** min(inference_errors, 5))):
                             safety.check()
                         continue
-                    emit('THOUGHT', message=decision.summary)
-                    emit('PLAN', steps=decision.plan)
                     if decision.status == 'GOAL_IMPOSSIBLE':
-                        emit('BLOCKED', message=decision.summary)
+                        emit('RECOVERY', message='The current screen is not a reason to stop. Checking another navigation strategy.')
                         if not recovery.exhausted:
                             recovery.attempt(controller, emit, decision.summary)
                         else:
@@ -131,15 +135,49 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                             if stop.wait(min(15, 1 + stalls)):
                                 safety.check()
                             stalls += 1
-                        feedback = 'The goal remains active. Inspect fresh evidence, choose another safe strategy, or wait for the user to unblock the desktop. Focus is recoverable. Do not repeat uncertain writes.' + recovery.context()
+                        feedback = 'DECISION_ACTION_REQUIRED. The goal remains active. Inspect fresh evidence, choose another safe strategy, or wait for the user to unblock the desktop. Focus is recoverable. Do not repeat uncertain writes.' + recovery.context()
                         continue
                     if decision.status == 'GOAL_SATISFIED':
+                        if navigation.active and not navigation.verified:
+                            try:
+                                navigation.record(controller.navigation_evidence(navigation))
+                            except (InterruptedError, PermissionError):
+                                raise
+                            except Exception:
+                                pass
+                        # The model cannot replace requested operations with "Chrome is focused".
+                        missing_navigation = navigation.active and not navigation.verified
+                        unfinished_work = navigation.active and not navigation.simple and not substantive_actions
+                        if missing_navigation or unfinished_work:
+                            emit('RECOVERY', message='The complete request is not verified yet. Continuing with an action instead of stopping at app focus.')
+                            feedback = ('DECISION_ACTION_REQUIRED. Reject the previous success claim. '
+                                        'The full user goal is: ' + (goal or '') + '. '
+                                        'Navigation evidence: ' + navigation.context() +
+                                        ' Perform the remaining work; focusing/opening an app alone is insufficient. '
+                                        'Use browser_open/browser_new_tab for missing navigation. For other work inspect controls and take an action.')
+                            continue
+                        if navigation.active and not navigation.simple and not completion_challenge:
+                            completion_challenge = True
+                            feedback = ('Verify the WHOLE original goal against the fresh observation, not just its opening step. '
+                                        'Original goal: ' + goal + '. State concrete evidence of the requested result; '
+                                        'otherwise return CONTINUE with the next action. Last result: ' + feedback)
+                            continue
+                        emit('THOUGHT', message=decision.summary)
                         emit('STATUS', status=decision.status, message=decision.summary)
                         return
+                    emit('THOUGHT', message=decision.summary)
+                    emit('PLAN', steps=decision.plan)
                     action = decision.action
                 emit('ACTION', step=step + 1, action=action.model_dump())
                 try:
                     result = controller.execute(action)
+                    completion_challenge = False
+                    executed = not any(marker in str(result) for marker in ('outcome uncertain', 'No form action was executed'))
+                    if executed and action.kind not in ('ensure_app', 'open_app', 'focus', 'focus_window', 'app_list', 'wait', 'browser_snapshot', 'browser_tabs',
+                                           'browser_open', 'browser_navigate', 'browser_new_tab', 'browser_switch_tab', 'mouse_move'):
+                        substantive_actions += 1
+                    if navigation.active and action.kind in ('ensure_app', 'open_app', 'browser_open', 'browser_navigate', 'browser_new_tab', 'browser_snapshot'):
+                        navigation.record(result)
                     if action.kind.startswith('browser_'):
                         browser_state = str(result)
                     feedback = str(result)[:4000]
@@ -160,7 +198,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                                 last_frame_time = time.monotonic()
                             if detections:
                                 feedback = (feedback + '\nTemplate observations: ' + str(detections))[-4000:]
-                    elif autonomous and action.kind in ('click', 'ui_click', 'hotkey', 'type_text', 'browser_navigate', 'open_app', 'ensure_app'):
+                    elif autonomous and action.kind in ('click', 'ui_click', 'hotkey', 'type_text', 'open_app', 'ensure_app'):
                         changed = False
                         until = min(deadline, time.monotonic() + 2)
                         while time.monotonic() < until:
@@ -206,6 +244,11 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
     except Exception as exc:
         emit('STATUS', status='ERROR', message=f'{type(exc).__name__}: {exc}')
     finally:
+        if brain and hasattr(brain, 'close'):
+            try:
+                brain.close()
+            except Exception:
+                pass
         if controller:
             try:
                 controller.close()

@@ -31,6 +31,11 @@ kids=[StringFileInfo([StringTable('040904B0', [StringStruct('CompanyName','Ghost
 StringStruct('FileDescription','GhostOS local Windows agent'), StringStruct('FileVersion','{version}'),
 StringStruct('ProductName','GhostOS'), StringStruct('ProductVersion','{version}'),
 StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('Translation',[1033,1200])])])''', encoding='utf-8')
+    # Generate the standard Windows UIA typelib before collecting comtypes.gen.
+    from agent.windows_use_engine import local_desktop
+    local_desktop().get_screen_size()
+    from ghostos_vendor.windows_use.uia import GetRootControl
+    GetRootControl()
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
                '--name', 'GhostOS', '--icon', str(ROOT / 'assets' / 'GhostOS.ico'), '--version-file', str(version_info),
                '--additional-hooks-dir', str(ROOT / 'build_tools' / 'hooks'),
@@ -39,7 +44,10 @@ StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('T
     if not args.console:
         command += ['--hide-console', 'hide-early']
     for source, dest in [('assets', 'assets'), ('VERSION', '.'), ('shortcuts.json', '.'), ('docs', 'docs'), ('recipes', 'recipes'),
-                         ('ui/dashboard.html', 'ui'), ('LICENSE', '.')]:
+                         ('ui/dashboard.html', 'ui'), ('LICENSE', '.'), ('ghostos_vendor/windows_use/LICENSE-MIT', 'ghostos_vendor/windows_use'),
+                         ('ghostos_vendor/windows_use/LICENSE-APACHE-UIA', 'ghostos_vendor/windows_use'),
+                         ('ghostos_vendor/windows_use/UPSTREAM.md', 'ghostos_vendor/windows_use'),
+                         ('ghostos_vendor/windows_use/upstream-manifest.json', 'ghostos_vendor/windows_use')]:
         command += ['--add-data', f'{source}{os.pathsep}{dest}']
     for module in ('faster_whisper', 'ctranslate2', 'uiautomation', 'pyttsx3', 'playwright', 'piper', 'onnxruntime'):
         command += ['--collect-all', module]
@@ -47,6 +55,7 @@ StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('T
                    'win32timezone', 'pythoncom', 'pywintypes', 'win32com.client',
                    'win32job', 'win32gui', 'win32api', 'sounddevice', 'webrtcvad', '_webrtcvad'):
         command += ['--hidden-import', module]
+    command += ['--collect-submodules', 'comtypes.gen']
     command += ['--exclude-module', 'PySide6', '--exclude-module', 'PyQt5', 'launcher.py']
     subprocess.run(command, check=True)
     # Record the exact environment used for each executable; attach during release.
