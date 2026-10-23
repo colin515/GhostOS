@@ -156,6 +156,9 @@ class MainWindow(QMainWindow):
         self.timer.start(150)
 
     def open_settings(self, section='general'):
+        if self.runtime.running:
+            self.status.setText('Stop the task before opening settings')
+            return
         SettingsView(self.runtime, self, section=section).exec()
         self.narrate.setChecked(self.runtime.settings.narrate_actions)
 
@@ -165,6 +168,11 @@ class MainWindow(QMainWindow):
         mark_ui(int(self.winId()))
 
     def hide_for_task(self):
+        from agent.window_focus import mark_ui
+        for widget in QApplication.topLevelWidgets():
+            mark_ui(int(widget.winId()))
+            if widget not in (self.panel, self.approval_dialog):
+                widget.hide()
         self.hide()
         self.panel.help_button.hide()
         self.panel.label.setText('GhostOS is working in the background')

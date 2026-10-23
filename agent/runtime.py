@@ -64,6 +64,8 @@ def local_ip():
 class Runtime:
     def __init__(self, settings):
         self.settings = settings
+        from agent.window_focus import register_ui_process
+        register_ui_process(os.getpid())
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         for name in ('logs', 'templates', 'recipes'):
             (settings.data_dir / name).mkdir(exist_ok=True)

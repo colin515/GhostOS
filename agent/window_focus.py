@@ -3,6 +3,11 @@ import os
 import time
 
 PROPERTY = 'GhostOS.NonInteractiveUI'
+UI_PROCESSES = set()
+
+
+def register_ui_process(pid):
+    UI_PROCESSES.add(int(pid))
 
 
 def mark_ui(hwnd):
@@ -17,7 +22,11 @@ def is_agent_window(hwnd):
         return False
     import win32gui
     try:
-        return bool(win32gui.GetProp(int(hwnd), PROPERTY))
+        if win32gui.GetProp(int(hwnd), PROPERTY):
+            return True
+        import win32process
+        _, pid = win32process.GetWindowThreadProcessId(int(hwnd))
+        return pid in UI_PROCESSES
     except Exception:
         return False
 

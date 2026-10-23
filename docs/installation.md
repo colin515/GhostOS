@@ -1,4 +1,4 @@
-# Installation · GhostOS 1.1.0
+# Installation · GhostOS 1.2.1
 
 ## Prerequisites
 
@@ -8,12 +8,13 @@ only. Internet is used to install packages and download models; subsequent model
 inference, screenshots and speech transcription stay local. Browser tasks use
 the network addresses requested by the user.
 
-Download **GhostOS_Installer_v1.0.1.exe** from the
+Download **GhostOS_Installer_v1.2.1.exe** from the
 [latest GitHub Release](https://github.com/colin515/GhostOS/releases/latest), run
 it, and open GhostOS from the Start Menu. Choose the `.exe` under **Assets**;
 the source ZIP is for developers. No Python installation is needed. The
 installer is per-user and requests no elevation. It does not silently install
-Ollama, GPU drivers, voice models, scheduled tasks, firewall rules or certificates.
+Ollama, GPU drivers, recognition models, scheduled tasks, firewall rules or certificates.
+The offline Piper TTS engine and its neural voice are included.
 It is unsigned. Verify the release SHA256SUMS file; do not assume SmartScreen
 will trust a newly published binary. Bundled binaries do not require Python.
 
@@ -93,12 +94,22 @@ resolved package versions so the build environment can be inspected. Ranged
 requirements are not a complete reproducible lockfile; independently review
 dependency updates before a public release.
 
-## Quick AI and voice controls in 1.1
+## Quick AI and voice controls in 1.2
 
-Open the gear immediately beside **Send**. Enable voice after downloading its
-model, then click **Speak**. Pause to submit automatically; click again to cancel.
-Choose a Windows voice, preview it, and adjust speaking speed or pause duration.
-**Narrate actions** can also be toggled directly below the composer during a run.
+The gear beside **Send** contains AI model, permission, browser and optional step
+or runtime limits. Both limits default to **Unlimited**. Old default 40-step and
+600-second limits migrate automatically; custom limits remain.
+
+Voice controls are in **Settings** at the top-right. The Piper neural voice is
+already installed. Preview it or choose a Windows fallback. Enable microphone
+commands after downloading the separate Whisper recognition model. Click Speak
+and pause to submit automatically; click again or Stop to cancel. Optional Voice
+approvals listens for Yes/Approve only while a current request is pending.
+**Narrate actions** is also available below the composer.
+
+The chat hides during a task and stays hidden afterward. Use the tray's explicit
+Show GhostOS action to open it; Stop and approval remain in a non-activating
+floating panel. Browser debugging setup is optional; see [browser control](browser_control.md).
 
 Model, image width and output budget changes apply to the next task. Older
 settings files keep their saved capture width; new installations default to

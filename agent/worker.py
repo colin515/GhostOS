@@ -25,6 +25,8 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
     try:
         from config import enable_dpi_awareness
         enable_dpi_awareness()
+        from agent.window_focus import register_ui_process
+        register_ui_process(__import__('os').getppid())
         if os.name == 'nt':
             import ctypes
             if ctypes.windll.shell32.IsUserAnAdmin():

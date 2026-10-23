@@ -19,3 +19,15 @@ def test_stale_voice_request_never_records_or_approves():
     listener = VoiceApproval(runtime, 'old')
     listener.run()  # No microphone import or authorization when the request has expired.
     assert not listener.active()
+
+
+def test_neural_voice_disables_telemetry_before_model_initialization(monkeypatch, tmp_path):
+    import sys
+    from agent.neural_speech import PiperSpeech
+    calls = []
+    path = tmp_path / 'voice.onnx'
+    path.write_bytes(b'test')
+    monkeypatch.setitem(sys.modules, 'onnxruntime', SimpleNamespace(disable_telemetry_events=lambda: calls.append('disabled')))
+    monkeypatch.setitem(sys.modules, 'piper', SimpleNamespace(PiperVoice=SimpleNamespace(load=lambda *a, **kw: calls.append('loaded'))))
+    PiperSpeech(path)
+    assert calls == ['disabled', 'loaded']

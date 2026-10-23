@@ -1,4 +1,4 @@
-# GhostOS 1.2.0 changes
+# GhostOS 1.2.1 changes
 
 - Chat hides for every run; completion never steals focus. Explicit tray restore,
   non-activating task/approval panels and a click-through yellow screen border.
