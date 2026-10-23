@@ -69,9 +69,10 @@ workflow latency depends on screen complexity and context size. Model licences r
 
 ### Desktop and phone dashboard
 
-Describe a goal and press **Send**. The chat hides while GhostOS works and never
-automatically restores on completion. A non-activating panel provides Stop and
-approvals; explicitly restore the chat from its tray icon when wanted. The
+Describe a goal and press **Send**. The chat hides while GhostOS works and
+automatically reopens after the task finishes or stops, ready for another typed
+or spoken command. A non-activating panel provides Stop and approvals during
+execution; the tray can also show the chat on request. The
 trajectory shows public progress, current screenshots and cursor debug events.
 
 The **AI gear beside Send** controls model, permissions, browser and optional

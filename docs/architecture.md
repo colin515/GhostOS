@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.3.0
+# Architecture · GhostOS 1.3.1
 
 The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
 LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,
@@ -9,8 +9,10 @@ An unexpected indicator exit stops the worker.
 ## Background execution and focus
 
 Submitting a goal hides the chat, including goals received from the dashboard.
-Completion updates status and logs; it never restores or activates the chat.
-The tray's explicit **Show GhostOS** action restores it. While a task is active,
+After worker cleanup, `FINISHED` restores and activates the chat once, focuses
+the composer and makes typed/voice follow-up available. It does not start the
+microphone automatically. A newer active run or application shutdown prevents
+restoration. The tray's explicit **Show GhostOS** action also restores it. While a task is active,
 even that window is shown without activation. A compact non-activating task
 panel provides Stop, voice activity and optional browser help. Approval windows
 also use `WindowDoesNotAcceptFocus` and `WA_ShowWithoutActivating` and never

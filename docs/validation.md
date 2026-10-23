@@ -1,4 +1,4 @@
-# Validation · GhostOS 1.3.0
+# Validation · GhostOS 1.3.1
 
 Automated unit/regression coverage runs on Linux and Windows. The release pipeline
 also installs all Windows dependencies, freezes the app, checks frozen imports,
@@ -26,7 +26,8 @@ Regression coverage includes:
 
 - unlimited default execution beyond 1,000 actions, optional limits and migration;
 - focus blockers remaining active after recovery, native app launch argument arrays;
-- own-window input exclusion and no automatic chat restore on completion;
+- own-window input exclusion, automatic chat restore after completion/Stop/error,
+  follow-up submission, and no restoration during a newer task or shutdown;
 - smooth cursor interpolation, endpoint failure detection, five button mappings,
   double click, cancellation releasing a drag;
 - settings separation, voice command auto-submit and cancelled voice rejection;

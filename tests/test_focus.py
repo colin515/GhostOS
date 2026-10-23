@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 import threading
+import pytest
 from agent.window_focus import FocusGuard
 
 
@@ -20,21 +21,62 @@ def test_focus_guard_restores_target_before_input_and_never_targets_agent(monkey
     assert guard.last == 50
 
 
-def test_completion_does_not_restore_or_focus_main_window(tmp_path):
+@pytest.mark.parametrize('status', ['GOAL_SATISFIED', 'STOPPED', 'ERROR'])
+def test_completion_reopens_chat_only_after_worker_cleanup(tmp_path, monkeypatch, status):
     from test_desktop import fake_runtime
     from ui.app import MainWindow
     from PyQt6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication([])
     runtime = fake_runtime(tmp_path)
     window = MainWindow(runtime)
+    activations = []
+    monkeypatch.setattr(window, 'activateWindow', lambda: activations.append(True))
     window.show()
+    runtime.running = True
     runtime.bus.publish('STARTED', goal='work')
     window.poll()
     assert not window.isVisible()
+    assert not activations
+    runtime.running = False
+    runtime.bus.publish('FINISHED', status=status)
+    window.poll()
+    assert window.isVisible()
+    assert not window.panel.isVisible()
+    assert activations == [True]
+    assert window.send.isEnabled()
+    assert window.voice_button.isEnabled()
+    assert 'Ready for your next command' in window.voice_status.text()
+    window.poll()
+    assert activations == [True]  # No repeated focus stealing on later timer ticks.
+    window.submit_goal('Open Microsoft Store')
+    assert runtime.goals == ['Open Microsoft Store']
+    assert not window.isVisible()
+    window.close()
+    app.processEvents()
+
+
+def test_delayed_completion_never_interrupts_an_active_run_or_shutdown(tmp_path, monkeypatch):
+    from test_desktop import fake_runtime
+    from ui.app import MainWindow
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance() or QApplication([])
+    runtime = fake_runtime(tmp_path)
+    window = MainWindow(runtime)
+    monkeypatch.setattr(window, 'activateWindow', lambda: pytest.fail('Unexpected focus transfer'))
+    runtime.running = True
+    runtime.bus.publish('FINISHED', status='GOAL_SATISFIED')
+    runtime.bus.publish('STARTED', goal='next task')
+    window.poll()
+    assert not window.isVisible()
+    # A delayed old event must not reactivate the UI over the new worker either.
     runtime.bus.publish('FINISHED', status='GOAL_SATISFIED')
     window.poll()
     assert not window.isVisible()
-    assert not window.panel.isVisible()
+    runtime.running = False
+    window.closing_requested = True
+    runtime.bus.publish('FINISHED', status='STOPPED')
+    window.poll()
+    assert not window.isVisible()
     window.close()
     app.processEvents()
 

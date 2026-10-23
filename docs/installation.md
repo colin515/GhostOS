@@ -107,9 +107,10 @@ and pause to submit automatically; click again or Stop to cancel. Optional Voice
 approvals listens for Yes/Approve only while a current request is pending.
 **Narrate actions** is also available below the composer.
 
-The chat hides during a task and stays hidden afterward. Use the tray's explicit
-Show GhostOS action to open it; Stop and approval remain in a non-activating
-floating panel. Browser debugging setup is optional; see [browser control](browser_control.md).
+The chat hides during a task and reopens automatically when it finishes or stops.
+Type your next command or press Speak to talk again. You can also use the tray's
+Show GhostOS action; Stop and approval remain in a non-activating floating panel
+during execution. Browser debugging setup is optional; see [browser control](browser_control.md).
 
 Model, image width and output budget changes apply to the next task. Older
 settings files keep their saved capture width; new installations default to

@@ -179,12 +179,20 @@ class MainWindow(QMainWindow):
         self.panel.show()
 
     def show_from_tray(self):
-        # An explicit user request is the only way to restore the chat window.
+        # Never activate the chat while a worker still owns desktop input.
         self.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, self.runtime.running)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, self.runtime.running)
         self.showNormal()
         if not self.runtime.running:
+            self.raise_()
             self.activateWindow()
+
+    def return_to_chat(self):
+        if self.runtime.running or self.closing_requested:
+            return
+        self.show_from_tray()
+        self.input.setFocus(Qt.FocusReason.OtherFocusReason)
+        self.voice_status.setText('Ready for your next command · press Speak or type below')
 
     def browser_help(self):
         self.panel.label.setText('Optional CDP setup: choose Chrome in AI settings. GhostOS creates a separate local browser profile automatically. If your policy blocks it, see docs/browser_control.md. Mouse and keyboard continue to work.')
@@ -238,10 +246,12 @@ class MainWindow(QMainWindow):
         self.runtime.preview_enabled = self.isVisible() and not self.isMinimized()
         events = self.runtime.bus.after(self.cursor)[:60]
         self.trajectory.add_events(events)
+        finished = False
         for event in events:
             self.cursor = event['id']
             kind = event['kind']
             if kind == 'STARTED':
+                finished = False
                 self.hide_for_task()
                 self.append_chat('You\n' + event_text(event) + '\n')
             elif kind in ('THOUGHT', 'STATUS', 'ERROR', 'RECOVERY'):
@@ -249,6 +259,7 @@ class MainWindow(QMainWindow):
             if kind in ('INFERENCE', 'RECOVERY'):
                 self.status.setText('●  ' + event_text(event)[:85])
             if kind == 'FINISHED':
+                finished = True
                 self.panel.hide()
                 self.status.setText('●  ' + event_text(event))
             if kind == 'BROWSER_FALLBACK':
@@ -273,6 +284,8 @@ class MainWindow(QMainWindow):
             self.frame_id = frame['id']
             self.trajectory.frame(frame)
         self.poll_approvals()
+        if finished:
+            self.return_to_chat()
 
     def poll_approvals(self):
         pending = self.runtime.approvals.pending()
