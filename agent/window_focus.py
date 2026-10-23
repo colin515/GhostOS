@@ -1,5 +1,8 @@
 """Verified native foreground transfer; never activate GhostOS-owned windows."""
 import os
+import ctypes
+from ctypes import wintypes
+from functools import lru_cache
 import time
 
 PROPERTY = 'GhostOS.NonInteractiveUI'
@@ -10,19 +13,41 @@ def register_ui_process(pid):
     UI_PROCESSES.add(int(pid))
 
 
+@lru_cache(maxsize=1)
+def property_api():
+    user = ctypes.WinDLL('user32', use_last_error=True)
+    user.IsWindow.argtypes = (wintypes.HWND,)
+    user.IsWindow.restype = wintypes.BOOL
+    user.SetPropW.argtypes = (wintypes.HWND, wintypes.LPCWSTR, wintypes.HANDLE)
+    user.SetPropW.restype = wintypes.BOOL
+    user.GetPropW.argtypes = (wintypes.HWND, wintypes.LPCWSTR)
+    user.GetPropW.restype = wintypes.HANDLE
+    user.RemovePropW.argtypes = (wintypes.HWND, wintypes.LPCWSTR)
+    user.RemovePropW.restype = wintypes.HANDLE
+    return user
+
+
 def mark_ui(hwnd):
     if os.name == 'nt':
-        import win32gui
-        if win32gui.IsWindow(int(hwnd)):
-            win32gui.SetProp(int(hwnd), PROPERTY, 1)
+        register_ui_process(os.getpid())
+        user = property_api()
+        if user.IsWindow(int(hwnd)):
+            # pywin32 does not expose SetProp/GetProp. Use the pointer-sized native API.
+            if not user.SetPropW(int(hwnd), PROPERTY, 1):
+                from agent.startup import log_startup
+                log_startup(f'Window property unavailable (error {ctypes.get_last_error()}); PID guard remains active')
+
+
+def unmark_ui(hwnd):
+    if os.name == 'nt' and property_api().IsWindow(int(hwnd)):
+        property_api().RemovePropW(int(hwnd), PROPERTY)
 
 
 def is_agent_window(hwnd):
     if not hwnd or os.name != 'nt':
         return False
-    import win32gui
     try:
-        if win32gui.GetProp(int(hwnd), PROPERTY):
+        if property_api().GetPropW(int(hwnd), PROPERTY):
             return True
         import win32process
         _, pid = win32process.GetWindowThreadProcessId(int(hwnd))

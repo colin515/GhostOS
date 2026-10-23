@@ -302,6 +302,9 @@ class MainWindow(QMainWindow):
             dialog.show()
 
     def approval_finished(self, request_id, result):
+        if self.approval_dialog:
+            from agent.window_focus import unmark_ui
+            unmark_ui(int(self.approval_dialog.winId()))
         # Foreground restoration can call Windows APIs; never block the GUI event loop.
         threading.Thread(target=self.runtime.approve,
                          args=(request_id, result == QMessageBox.StandardButton.Yes), daemon=True).start()
@@ -360,6 +363,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.closing_requested = True
+        from agent.window_focus import unmark_ui
+        unmark_ui(int(self.winId()))
         if self.voice_task and self.voice_task.isRunning():
             self.voice_task.cancel.set()
             self.voice_status.setText('Stopping voice input before closing…')

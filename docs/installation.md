@@ -148,3 +148,8 @@ Release CI installs published 1.2.2 in a custom folder, starts its hidden web
 runtime, upgrades without `/DIR`, and checks process shutdown, the installed
 version, real desktop startup, corrupted-settings recovery, same-version repair,
 one Installed apps entry and preservation of user files through uninstallation.
+
+Version 1.2.3 also fixes a Windows desktop startup crash caused by calling
+nonexistent pywin32 window-property wrappers. It now uses native SetPropW/GetPropW
+with explicit 64-bit handle types. A native Windows regression test checks these
+properties, and the installer pipeline opens the actual installed desktop.

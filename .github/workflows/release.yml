@@ -84,6 +84,12 @@ jobs:
       - name: Upgrade an existing hidden installation and repair startup
         shell: pwsh
         run: ./build_tools/test_upgrade.ps1
+      - name: Print startup diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA 'GhostOS/startup.log'
+          if (Test-Path $log) { Get-Content $log -Tail 120 }
       - name: Package versioned documentation and checksums
         shell: pwsh
         run: |

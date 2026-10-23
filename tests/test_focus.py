@@ -37,3 +37,20 @@ def test_completion_does_not_restore_or_focus_main_window(tmp_path):
     assert not window.panel.isVisible()
     window.close()
     app.processEvents()
+
+
+def test_native_windows_properties_tag_and_untag_without_pywin32_wrappers():
+    import os
+    import pytest
+    if os.name != 'nt':
+        pytest.skip('Native Windows property API')
+    import win32gui
+    from agent.window_focus import mark_ui, unmark_ui, property_api, PROPERTY
+    hwnd = win32gui.CreateWindowEx(0, 'STATIC', 'GhostOS property test', 0, 0, 0, 10, 10, 0, 0, 0, None)
+    try:
+        mark_ui(hwnd)
+        assert property_api().GetPropW(hwnd, PROPERTY) == 1
+        unmark_ui(hwnd)
+        assert not property_api().GetPropW(hwnd, PROPERTY)
+    finally:
+        win32gui.DestroyWindow(hwnd)

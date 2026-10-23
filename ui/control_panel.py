@@ -37,3 +37,8 @@ class ControlPanel(QWidget):
         if screen:
             area = screen.availableGeometry()
             self.move(area.right() - self.width() - 18, area.bottom() - self.height() - 18)
+
+    def closeEvent(self, event):
+        from agent.window_focus import unmark_ui
+        unmark_ui(int(self.winId()))
+        super().closeEvent(event)
