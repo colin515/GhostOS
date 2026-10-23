@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.2.0"
 #endif
 [Setup]
 AppId={{5EEDCD48-2F6C-46E7-9C19-7B39E8AC5B22}
@@ -17,6 +17,7 @@ OutputBaseFilename=GhostOS_Installer_v{#AppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\assets\GhostOS.ico
 UninstallDisplayIcon={app}\GhostOS.exe
 CloseApplications=yes
 LicenseFile=..\LICENSE
@@ -25,10 +26,10 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 [Files]
 Source: "..\dist\GhostOS\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
-Name: "{group}\GhostOS"; Filename: "{app}\GhostOS.exe"; Parameters: "--desktop"
+Name: "{group}\GhostOS"; Filename: "{app}\GhostOS.exe"; Parameters: "--desktop"; AppUserModelID: "GhostOS.Desktop"
 Name: "{group}\Documentation"; Filename: "{app}\_internal\docs\installation.md"
 Name: "{group}\Uninstall GhostOS"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\GhostOS"; Filename: "{app}\GhostOS.exe"; Parameters: "--desktop"; Tasks: desktopicon
+Name: "{autodesktop}\GhostOS"; Filename: "{app}\GhostOS.exe"; Parameters: "--desktop"; AppUserModelID: "GhostOS.Desktop"; Tasks: desktopicon
 [Run]
 Filename: "{app}\GhostOS.exe"; Parameters: "--desktop"; Description: "Launch GhostOS"; Flags: nowait postinstall skipifsilent
 ; Only installer-owned files and shortcuts are removed. User recipes, logs,

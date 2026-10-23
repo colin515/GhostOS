@@ -19,7 +19,7 @@ def requires_approval(action: Action, tier: int) -> bool:
         return False
     if action.kind == 'ensure_app':
         return action.args['strategy'] == 'search'
-    if action.kind in ('wait', 'focus', 'browser_navigate', 'browser_snapshot', 'game_move'):
+    if action.kind in ('wait', 'focus', 'mouse_move', 'scroll', 'browser_navigate', 'browser_snapshot', 'game_move'):
         return False
     if action.kind == 'hotkey':
         return tuple(k.lower() for k in action.args['keys']) not in NAVIGATION_KEYS
@@ -69,7 +69,7 @@ class WorkerSafety:
         request = uuid.uuid4().hex
         import os
         target_window = None
-        if os.name == 'nt':
+        if os.name == 'nt' and action.kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click', 'game_move', 'game_key', 'game_click'):
             import ctypes
             ctypes.windll.user32.GetForegroundWindow.restype = ctypes.c_void_p
             target_window = ctypes.windll.user32.GetForegroundWindow()

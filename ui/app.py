@@ -6,7 +6,7 @@ import threading
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QLabel, QPushButton, QPlainTextEdit, QSplitter, QMessageBox,
-                            QFrame, QCheckBox)
+                            QFrame, QCheckBox, QSystemTrayIcon, QMenu)
 from ui.trajectory_view import TrajectoryView, event_text
 from ui.settings_view import SettingsView
 from ui.widgets import GhostLogo, AudioVisualizer, ghost_icon
@@ -43,6 +43,19 @@ class MainWindow(QMainWindow):
     def __init__(self, runtime):
         super().__init__()
         self.runtime, self.cursor, self.frame_id = runtime, 0, 0
+        from ui.control_panel import ControlPanel
+        self.panel = ControlPanel(self.stop, self.browser_help)
+        self.tray = None
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray = QSystemTrayIcon(ghost_icon(), self)
+            self.tray.setToolTip('GhostOS · local computer control')
+            menu = QMenu(self)
+            menu.addAction('Show GhostOS', self.show_from_tray)
+            menu.addAction('Emergency stop', self.stop)
+            menu.addAction('Quit', self.close)
+            self.tray.setContextMenu(menu)
+            self.tray.activated.connect(lambda reason: self.show_from_tray() if reason == QSystemTrayIcon.ActivationReason.DoubleClick else None)
+            self.tray.show()
         self.voice_task = None
         self.approval_dialog = None
         self.approval_id = None
@@ -66,6 +79,10 @@ class MainWindow(QMainWindow):
         self.status = QLabel('●  Ready · local inference')
         self.status.setObjectName('status')
         header.addWidget(self.status)
+        self.general_settings_button = QPushButton('Settings')
+        self.general_settings_button.setToolTip('Voice, appearance and phone dashboard')
+        self.general_settings_button.clicked.connect(lambda: self.open_settings('general'))
+        header.addWidget(self.general_settings_button)
         self.stop_button = QPushButton('■  Stop')
         self.stop_button.setObjectName('stop')
         self.stop_button.clicked.connect(self.stop)
@@ -107,8 +124,8 @@ class MainWindow(QMainWindow):
         self.settings_button.setObjectName('settings')
         self.settings_button.setFixedSize(44, 44)
         self.settings_button.setAccessibleName('AI settings')
-        self.settings_button.setToolTip('AI settings · permissions, model, voice and performance')
-        self.settings_button.clicked.connect(self.open_settings)
+        self.settings_button.setToolTip('AI configuration · model, permissions and execution')
+        self.settings_button.clicked.connect(lambda: self.open_settings('ai'))
         buttons.addWidget(self.settings_button)
         self.send = QPushButton('Send  ↑')
         self.send.setObjectName('send')
@@ -138,9 +155,32 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.poll)
         self.timer.start(150)
 
-    def open_settings(self):
-        SettingsView(self.runtime, self).exec()
+    def open_settings(self, section='general'):
+        SettingsView(self.runtime, self, section=section).exec()
         self.narrate.setChecked(self.runtime.settings.narrate_actions)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from agent.window_focus import mark_ui
+        mark_ui(int(self.winId()))
+
+    def hide_for_task(self):
+        self.hide()
+        self.panel.help_button.hide()
+        self.panel.label.setText('GhostOS is working in the background')
+        self.panel.show()
+
+    def show_from_tray(self):
+        # An explicit user request is the only way to restore the chat window.
+        self.setWindowFlag(Qt.WindowType.WindowDoesNotAcceptFocus, self.runtime.running)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, self.runtime.running)
+        self.showNormal()
+        if not self.runtime.running:
+            self.activateWindow()
+
+    def browser_help(self):
+        self.panel.label.setText('Optional CDP setup: choose Chrome in AI settings. GhostOS creates a separate local browser profile automatically. If your policy blocks it, see docs/browser_control.md. Mouse and keyboard continue to work.')
+        self.panel.help_button.hide()
 
     def toggle_narration(self, checked):
         self.runtime.settings.narrate_actions = checked
@@ -167,7 +207,7 @@ class MainWindow(QMainWindow):
             if voice:
                 self.runtime.speech.say('On it.', priority=True)
             self.input.clear()
-            self.showMinimized()
+            self.hide_for_task()
         except (RuntimeError, ValueError) as exc:
             self.status.setText(str(exc))
 
@@ -187,14 +227,24 @@ class MainWindow(QMainWindow):
             self.cursor = event['id']
             kind = event['kind']
             if kind == 'STARTED':
+                self.hide_for_task()
                 self.append_chat('You\n' + event_text(event) + '\n')
             elif kind in ('THOUGHT', 'STATUS', 'ERROR', 'RECOVERY'):
                 self.append_chat('GhostOS\n' + event_text(event) + '\n')
             if kind in ('INFERENCE', 'RECOVERY'):
                 self.status.setText('●  ' + event_text(event)[:85])
             if kind == 'FINISHED':
-                self.showNormal()
+                self.panel.hide()
                 self.status.setText('●  ' + event_text(event))
+            if kind == 'BROWSER_FALLBACK':
+                self.panel.label.setText(event['message'])
+                self.panel.help_button.show()
+            if kind == 'VOICE_APPROVAL':
+                self.panel.label.setText(event['message'])
+                self.panel.wave.set_listening(True)
+            if kind == 'AUDIO_LEVEL':
+                self.panel.wave.set_listening(event['level'] > 0)
+                self.panel.wave.set_level(event['level'])
         busy = self.runtime.running
         recording = self.voice_task and self.voice_task.isRunning()
         self.send.setEnabled(not busy and not recording)
@@ -220,13 +270,18 @@ class MainWindow(QMainWindow):
         if pending and self.approval_dialog is None:
             request = pending[0]
             self.approval_id = request['id']
-            dialog = QMessageBox(self)
+            dialog = QMessageBox(None)
             dialog.setWindowTitle('Approve agent action')
             dialog.setText('Allow this action?')
             dialog.setInformativeText(json.dumps(request['action'], indent=2))
             dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             dialog.setDefaultButton(QMessageBox.StandardButton.No)
-            dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
+            dialog.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
+            dialog.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            for button in dialog.buttons():
+                button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            from agent.window_focus import mark_ui
+            mark_ui(int(dialog.winId()))
             dialog.finished.connect(lambda result, rid=request['id']: self.approval_finished(rid, result))
             self.approval_dialog = dialog
             dialog.show()
@@ -296,15 +351,26 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self.timer.stop()
+        self.panel.close()
+        if self.tray:
+            self.tray.hide()
+        if self.approval_dialog:
+            self.approval_dialog.close()
         self.runtime.preview_enabled = False
         self.stop()
         self.trajectory.shutdown()
         event.accept()
+        QApplication.instance().quit()
 
 
 def launch(runtime):
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName('GhostOS')
+    app.setQuitOnLastWindowClosed(False)
+    import os
+    if os.name == 'nt':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('GhostOS.Desktop')
     app.setWindowIcon(ghost_icon())
     app.setStyleSheet(STYLE)
     window = MainWindow(runtime)

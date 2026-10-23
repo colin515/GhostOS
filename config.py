@@ -39,8 +39,8 @@ class Settings:
     game_mode: bool = False
     game_poll_hz: int = 10
     vision_interval: float = 3.0
-    max_steps: int = 40
-    max_runtime: int = 600
+    max_steps: int = 0
+    max_runtime: int = 0
     approval_timeout: int = 120
     screenshot_width: int = 1024
     screenshot_interval: float = 0.75
@@ -50,6 +50,9 @@ class Settings:
     tts_enabled: bool = False
     whisper_model: str = 'base'
     narrate_actions: bool = False
+    settings_version: int = 2
+    voice_approval: bool = False
+    speech_engine: str = 'piper'
     speech_voice: str = ''
     speech_rate: int = 160
     speech_volume: float = 0.85
@@ -65,11 +68,11 @@ class Settings:
         self.data_dir = Path(self.data_dir)
         if self.tier not in (1, 2, 3):
             raise ValueError('Permission tier must be 1, 2 or 3')
-        if not (1 <= self.web_port <= 65535 and 1 <= self.max_steps <= 1000):
+        if not (1 <= self.web_port <= 65535 and 0 <= self.max_steps <= 2147483647):
             raise ValueError('Invalid port or step budget')
         if not (1 <= self.game_poll_hz <= 30 and 320 <= self.screenshot_width <= 3840):
             raise ValueError('Invalid capture settings')
-        if not (1 <= self.max_runtime <= 7200 and 1 <= self.approval_timeout <= 600):
+        if not (0 <= self.max_runtime <= 2147483647 and 1 <= self.approval_timeout <= 600):
             raise ValueError('Invalid runtime/approval time limit')
         if not (0.1 <= self.screenshot_interval <= 10 and 0.1 <= self.vision_interval <= 30):
             raise ValueError('Invalid polling intervals')
@@ -79,6 +82,8 @@ class Settings:
             raise ValueError('Invalid voice recording limits')
         if not (4096 <= self.context_tokens <= 32768 and 256 <= self.prediction_tokens <= 2048):
             raise ValueError('Invalid inference budget')
+        if self.speech_engine not in ('piper', 'sapi'):
+            raise ValueError('Unknown speech engine')
         if self.browser_channel not in ('msedge', 'chrome'):
             raise ValueError('Browser channel must be msedge or chrome')
         if not self.model.strip():
@@ -97,6 +102,12 @@ class Settings:
         if not path.exists():
             return cls(data_dir=root)
         raw = json.loads(path.read_text(encoding='utf-8'))
+        if raw.get('settings_version', 1) < 2:
+            if raw.get('max_steps') == 40:
+                raw['max_steps'] = 0
+            if raw.get('max_runtime') == 600:
+                raw['max_runtime'] = 0
+            raw['settings_version'] = 2
         raw['data_dir'] = root
         return cls(**raw)
 

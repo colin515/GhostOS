@@ -22,6 +22,9 @@ class UITree:
         import uiautomation as auto
         self.controls = {}
         self.window = auto.GetForegroundControl()
+        from agent.window_focus import is_agent_window
+        if self.window and is_agent_window(self.window.NativeWindowHandle):
+            self.window = None
         output = []
         if not self.window:
             return output
@@ -44,14 +47,15 @@ class UITree:
         visit(self.window, 0)
         return output
 
-    def click(self, element_id):
+    def center(self, element_id):
         control = self.controls.get(element_id)
         if control is None or not control.Exists(0, 0):
             raise ValueError('Stale UIA element; capture a new tree')
         import uiautomation as auto
         if not self.window or self.window.NativeWindowHandle != auto.GetForegroundControl().NativeWindowHandle:
             raise ValueError('Foreground window changed; recapture before clicking')
-        control.Click(simulateMove=False)
+        rect = control.BoundingRectangle
+        return ((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)
 
     def focus(self):
         if self.window and self.window.Exists(0, 0):

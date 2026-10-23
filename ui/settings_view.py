@@ -4,12 +4,12 @@ from PyQt6.QtWidgets import (QDialog, QWidget, QScrollArea, QVBoxLayout, QFormLa
 from ui.tasks import Task
 
 class SettingsView(QDialog):
-    def __init__(self, runtime, parent=None):
+    def __init__(self, runtime, parent=None, section='general'):
         super().__init__(parent)
         self.runtime = runtime
         self.voice_task = None
         self.deferred_result = None
-        self.setWindowTitle('GhostOS · AI settings')
+        self.setWindowTitle('GhostOS · ' + ('AI configuration' if section == 'ai' else 'Settings'))
         self.resize(650, 740)
         layout = QVBoxLayout(self)
         heading = QLabel('Make GhostOS yours')
@@ -48,6 +48,14 @@ class SettingsView(QDialog):
         self.tts = QCheckBox('Speak the final task status')
         self.tts.setChecked(runtime.settings.tts_enabled)
         form.addRow('Completion audio', self.tts)
+        self.voice_approval = QCheckBox('Listen for Yes / Approve only while permission is pending')
+        self.voice_approval.setChecked(runtime.settings.voice_approval)
+        form.addRow('Voice approvals', self.voice_approval)
+        self.speech_engine = QComboBox()
+        self.speech_engine.addItem('Piper · bundled offline neural voice', 'piper')
+        self.speech_engine.addItem('Windows installed voice', 'sapi')
+        self.speech_engine.setCurrentIndex(0 if runtime.settings.speech_engine == 'piper' else 1)
+        form.addRow('Speech engine', self.speech_engine)
         self.speech_voice = QComboBox()
         self.speech_voice.addItem('Calm default · Zira when installed', '')
         if runtime.settings.speech_voice:
@@ -81,11 +89,22 @@ class SettingsView(QDialog):
         self.output.setValue(runtime.settings.prediction_tokens)
         form.addRow('Output token budget', self.output)
         self.steps = QSpinBox()
-        self.steps.setRange(1, 1000)
+        self.steps.setRange(0, 2147483647)
+        self.steps.setSpecialValueText('Unlimited')
         self.steps.setValue(runtime.settings.max_steps)
         form.addRow('Task step limit', self.steps)
+        self.runtime_limit = QSpinBox()
+        self.runtime_limit.setRange(0, 2147483647)
+        self.runtime_limit.setSpecialValueText('Unlimited')
+        self.runtime_limit.setValue(runtime.settings.max_runtime)
+        form.addRow('Runtime limit (seconds)', self.runtime_limit)
+        ai_widgets = (self.tier, self.model, self.browser, self.cdp, self.game, self.width, self.output, self.steps, self.runtime_limit)
+        for row in range(form.rowCount()):
+            field = form.itemAt(row, QFormLayout.ItemRole.FieldRole)
+            if field and field.widget():
+                form.setRowVisible(row, (field.widget() in ai_widgets) == (section == 'ai'))
         body_layout.addLayout(form)
-        note = QLabel('Smaller images and shorter output reduce inference work.\nVoice quality depends on the Windows voices installed on this PC.\nStop the active task before changing model or control settings.')
+        note = QLabel('Smaller images and shorter output reduce inference work.\nPiper speech is local and included in the Windows installer.\nStop the active task before changing model or control settings.')
         note.setWordWrap(True)
         body_layout.addWidget(note)
         label = QLabel(f'Phone dashboard · http://{runtime.local_ip}:{runtime.settings.web_port}\nPairing grants PC control. Use a trusted private network; HTTP is not encrypted.')
@@ -99,8 +118,10 @@ class SettingsView(QDialog):
         show.toggled.connect(lambda checked: token.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password))
         body_layout.addWidget(show)
         web = QPushButton('Start phone dashboard')
-        web.clicked.connect(runtime.start_web)
+        web.clicked.connect(lambda: runtime.start_web())
         body_layout.addWidget(web)
+        for widget in (label, token, show, web):
+            widget.setVisible(section != 'ai')
         setup = QPushButton('Model and voice setup')
         setup.clicked.connect(self.open_setup)
         setup.setEnabled(not runtime.running)
@@ -169,6 +190,8 @@ class SettingsView(QDialog):
                                 game_mode=self.game.isChecked(), voice_enabled=self.voice.isChecked(),
                                 narrate_actions=self.narrate.isChecked(), tts_enabled=self.tts.isChecked(),
                                 speech_voice=self.speech_voice.currentData(), speech_rate=self.rate.value(),
+                                speech_engine=self.speech_engine.currentData(), voice_approval=self.voice_approval.isChecked(),
+                                max_runtime=self.runtime_limit.value(),
                                 vad_silence=self.silence.value(), screenshot_width=self.width.value(),
                                 prediction_tokens=self.output.value(), max_steps=self.steps.value())
             candidate.save()

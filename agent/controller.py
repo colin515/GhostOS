@@ -13,6 +13,10 @@ class Controller:
         self.settings, self.safety, self.tree, self.vision = settings, safety, tree, vision
         self.web = WebEngine(settings)
         self.game = None
+        from agent.window_focus import FocusGuard
+        self.focus_guard = FocusGuard(safety.stop)
+        self.focus_guard.observe()
+        self.mouse = None
         self.frame = None
         self.process = None
 
@@ -21,11 +25,31 @@ class Controller:
         self.safety.check()  # Stop may have arrived at the approval boundary.
         self.safety.events.put({'kind': 'EXECUTING', 'action': action.model_dump()}, timeout=0.2)
         kind, a = action.kind, action.args
+        if kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click'):
+            self.focus_guard.ensure_external()
         if kind == 'ensure_app':
             from agent.windows_apps import WindowsApps
             return WindowsApps(self.safety.stop).ensure(a['name'], a['strategy'], self.type_unicode)
         if kind.startswith('browser_'):
-            return self.web.execute(action)
+            try:
+                return self.web.execute(action)
+            except (InterruptedError, PermissionError):
+                raise
+            except Exception as exc:
+                self.web.native_fallback = True
+                self.web.close()
+                self.safety.events.put({'kind': 'BROWSER_FALLBACK', 'message': f'CDP unavailable: {exc}. Using mouse and keyboard. Would you like setup instructions?', 'help_offer': True}, timeout=0.2)
+                from agent.windows_apps import WindowsApps
+                app = 'chrome' if self.settings.browser_channel == 'chrome' else 'edge'
+                apps = WindowsApps(self.safety.stop)
+                if kind == 'browser_navigate':
+                    path = apps.installed_path(app)
+                    if path is None:
+                        raise FileNotFoundError(f'{app} is not installed')
+                    subprocess.Popen([str(path), a['url']], shell=False)
+                    apps._wait_for_window(app)
+                    return 'Native browser opened the URL. CDP disabled for this run; use the visible mouse, UIA and keyboard. Inspect the new screenshot.'
+                return 'CDP failed; outcome uncertain. Do not replay a form submission. Use fresh screenshot, mouse and keyboard controls. Browser selectors are unavailable.' 
         if kind == 'shell':
             return self.shell(a['script'], a['timeout'])
         if kind == 'wait':
@@ -33,10 +57,14 @@ class Controller:
                 self.safety.check()
             return 'Wait finished'
         if kind == 'focus':
-            self.tree.focus()
+            self.focus_guard.ensure_external()
+            if self.focus_guard.last:
+                from agent.window_focus import focus_window
+                focus_window(self.focus_guard.last, self.safety.stop)
             return 'Requested foreground window focus'
         if kind == 'ui_click':
-            self.tree.click(a['element_id'])
+            x, y = self.tree.center(a['element_id'])
+            self.mouse_driver().click(x, y)
             return 'UIA control clicked'
         if kind.startswith('game_'):
             if not self.settings.game_mode:
@@ -51,6 +79,22 @@ class Controller:
             elif kind == 'game_click':
                 self.game.click()
             return 'Game input sent'
+        if kind in ('click', 'mouse_move', 'drag'):
+            if self.frame is None:
+                raise RuntimeError('A screenshot is required for coordinate input')
+            x, y = self.frame.physical(a['x'], a['y'])
+            mouse = self.mouse_driver()
+            if kind == 'mouse_move':
+                mouse.move(x, y, a['duration'])
+            elif kind == 'drag':
+                to_x, to_y = self.frame.physical(a['to_x'], a['to_y'])
+                mouse.drag(x, y, to_x, to_y, a['button'], a['duration'])
+            else:
+                mouse.click(x, y, a['button'], a['clicks'], a['duration'])
+            return f'{kind} verified at physical pixels {x}, {y}'
+        if kind == 'scroll':
+            self.mouse_driver().scroll(a['ticks'], a['horizontal'])
+            return 'Wheel input sent'
         import pyautogui as pg
         pg.FAILSAFE, pg.PAUSE = True, 0.05
         if kind == 'hotkey':
@@ -66,11 +110,6 @@ class Controller:
                     pg.keyUp(key.lower())
         elif kind == 'type_text':
             self.type_unicode(a['text'])
-        elif kind == 'click':
-            if self.frame is None:
-                raise RuntimeError('A screenshot is required for coordinate input')
-            x, y = self.frame.physical(a['x'], a['y'])
-            pg.click(x, y, button=a['button'])
         elif kind == 'template_click':
             frame = self.vision.capture()
             match = self.vision.match(frame, a['name'], a['threshold'])
@@ -82,7 +121,7 @@ class Controller:
                     from agent.gaming_engine import GamingEngine
                     self.game = GamingEngine(self.safety.stop)
                 self.game.check_focus()
-            pg.click(x, y)
+            self.mouse_driver().click(x, y)
         elif kind == 'open_app':
             shortcuts = json.loads((RESOURCE_DIR / 'shortcuts.json').read_text(encoding='utf-8'))
             target = shortcuts.get(a['name'].lower())
@@ -94,6 +133,12 @@ class Controller:
         else:
             raise ValueError('Unknown action')
         return f'{kind} executed'
+
+    def mouse_driver(self):
+        if self.mouse is None:
+            from agent.mouse import MouseDriver
+            self.mouse = MouseDriver(self.safety.stop, lambda **e: self.safety.events.put(e, timeout=0.2))
+        return self.mouse
 
     def type_unicode(self, text):
         from agent.gaming_engine import INPUT, KEYBDINPUT, send_input

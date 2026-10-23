@@ -43,6 +43,7 @@ def release_inputs():
             if ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000:
                 events.append(INPUT(type=1, ki=KEYBDINPUT(wVk=vk, dwFlags=2)))
         events.append(INPUT(type=0, mi=MOUSEINPUT(dwFlags=0x0004 | 0x0010 | 0x0040)))
+        events.extend(INPUT(type=0, mi=MOUSEINPUT(mouseData=button, dwFlags=0x0100)) for button in (1, 2))
         send_input(events)
     except OSError:
         pass

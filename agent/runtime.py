@@ -86,6 +86,7 @@ class Runtime:
         self.emergency_stopped = False
         self.interactive_cli = True
         self._cli_prompt_thread = None
+        self._voice_approval = None
         self._kill_switch = KillSwitch(self.stop)
         # Fresh per application launch, never placed in URLs/logs or embedded in the web page.
         self.token = secrets.token_urlsafe(32)
@@ -201,7 +202,7 @@ class Runtime:
                 while True:
                     if indicator and not indicator.process.is_alive() and not self._stop.is_set():
                         self.stop(reason='Activity indicator stopped unexpectedly', status='INDICATOR_ERROR')
-                    if time.monotonic() - started > self.settings.max_runtime and not self._stop.is_set():
+                    if self.settings.max_runtime and time.monotonic() - started > self.settings.max_runtime and not self._stop.is_set():
                         self.stop(reason='Maximum run time reached', status='MAX_RUNTIME_EXCEEDED')
                     try:
                         event = self._events.get(timeout=0.1)
@@ -214,10 +215,16 @@ class Runtime:
                         break
                     if kind == 'APPROVAL':
                         self.approvals.create(event['request_id'], event['action'], event.get('target_window'))
+                        if self.settings.voice_approval:
+                            from agent.voice_approval import VoiceApproval
+                            self.cancel_voice_approval()
+                            self._voice_approval = VoiceApproval(self, event['request_id'])
+                            self._voice_approval.start()
                         log.write(json.dumps(dict(kind=kind, **event), ensure_ascii=False) + '\n')
                     else:
                         if kind == 'APPROVAL_EXPIRED':
                             self.approvals.resolve(event['request_id'])
+                            self.cancel_voice_approval()
                         if kind == 'EXECUTING' and self.settings.narrate_actions:
                             from agent.voice import action_narration
                             self.speech.say(action_narration(event['action']))
@@ -246,6 +253,7 @@ class Runtime:
                 from agent.gaming_engine import release_inputs
                 release_inputs()
             self.approvals.clear()
+            self.cancel_voice_approval()
             if self._capture_cancel:
                 self._capture_cancel.set()
             if indicator:
@@ -257,7 +265,12 @@ class Runtime:
                 self._process = None
                 self.bus.publish('FINISHED', status=terminal_status, logs=str(log_dir))
 
-    def approve(self, request_id, approved):
+    def cancel_voice_approval(self):
+        listener = getattr(self, '_voice_approval', None)
+        if listener:
+            listener.cancel.set()
+
+    def approve(self, request_id, approved, source='button'):
         with self._lock:
             if not self._process or self._stop.is_set():
                 return False
@@ -270,12 +283,14 @@ class Runtime:
                 import win32gui
                 import ctypes
                 try:
-                    win32gui.SetForegroundWindow(pending['target_window'])
+                    from agent.window_focus import focus_window
+                    focus_window(pending['target_window'], self._stop)
                     ctypes.windll.user32.AllowSetForegroundWindow(self._process.pid)
                 except Exception:
                     approved = False
             self._answers.put_nowait({'id': request_id, 'approved': bool(approved)})
-            self.bus.publish('APPROVAL_RESOLVED', request_id=request_id, approved=bool(approved))
+            self.cancel_voice_approval()
+            self.bus.publish('APPROVAL_RESOLVED', request_id=request_id, approved=bool(approved), source=source)
             return True
 
     def stop(self, reason='Emergency stop', status='STOPPED'):
@@ -290,6 +305,7 @@ class Runtime:
                 self._capture_cancel.set()
             self._terminal_status = status
             self.approvals.clear()
+        self.cancel_voice_approval()
         if getattr(self, '_indicator', None):
             self._indicator.request_stop()
         if getattr(self, 'speech', None):

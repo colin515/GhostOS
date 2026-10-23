@@ -59,3 +59,24 @@ def test_activity_labels_do_not_render_empty_start_and_stop_logs():
     assert event_text({'kind':'STARTED','goal':'Open Chrome'}) == 'Open Chrome'
     assert event_text({'kind':'STOP','message':'Emergency stop'}) == 'Emergency stop'
     assert event_text({'kind':'FINISHED','status':'GOAL_IMPOSSIBLE'}) == 'Goal impossible'
+
+
+def test_settings_split_keeps_ai_at_composer_and_voice_in_header(tmp_path):
+    from ui.settings_view import SettingsView
+    app = QApplication.instance() or QApplication([])
+    runtime = fake_runtime(tmp_path)
+    ai = SettingsView(runtime, section='ai')
+    ai.show()
+    app.processEvents()
+    assert ai.model.isVisible()
+    assert ai.steps.specialValueText() == 'Unlimited'
+    assert ai.steps.value() == 0
+    assert not ai.voice.isVisible()
+    ai.close()
+    general = SettingsView(runtime, section='general')
+    general.show()
+    app.processEvents()
+    assert general.voice.isVisible()
+    assert general.voice_approval.isVisible()
+    assert not general.model.isVisible()
+    general.close()

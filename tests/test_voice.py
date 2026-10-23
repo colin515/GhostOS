@@ -79,7 +79,7 @@ def test_speech_cancellation_stops_active_and_discards_queued_messages(monkeypat
             pass
     monkeypatch.setattr(voice, '_init_speech', lambda: Engine())
     monkeypatch.setattr(voice, '_close_speech', lambda engine: engine.stop())
-    speech = SpeechService(lambda: Settings())
+    speech = SpeechService(lambda: Settings(speech_engine='sapi'))
     speech.say('On it.')
     assert started.wait(2)
     speech.say('Old queued narration')

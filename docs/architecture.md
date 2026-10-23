@@ -1,130 +1,138 @@
-# Architecture · GhostOS 1.1.0
+# Architecture · GhostOS 1.2.0
 
-`main.py` selects desktop, network, CLI, recipe, watcher or scheduler mode and
-sets Per-Monitor-V2 DPI awareness before importing capture/Qt libraries. One
-per-user file lock prevents separate instances from controlling the same PC.
-The non-elevated parent owns a bounded event bus, approval broker, optional
-FastAPI server and global stop listener. A spawned worker owns automation,
-Playwright and Ollama requests. Startup of the worker/manager and the activity indicator happens in a launch thread.
-The GUI never waits on process startup, inference or a command. A separate read-only capture thread
-keeps the desktop/LAN screenshot feed live during inference and approvals when
-a preview consumer is visible or the dashboard is enabled. It stops with the run.
-JPEG encoding is cached per observation; Qt preview decoding/scaling uses a
-coalescing background thread, and UI logs update in bounded batches.
+The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
+LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,
+Playwright/CDP, native input and commands. The glowing screen border runs in a
+separate, click-through, non-focusable process and must be ready before input.
+An unexpected indicator exit stops the worker.
 
-## Decision and execution boundary
+## Background execution and focus
 
-1. Capture the primary monitor; retain physical size with the model-size image.
-2. Read a bounded foreground UIA tree on an initialized COM thread (desktop mode).
-3. Build context from the goal, compact outcome history, current DOM excerpt and
-   exactly one latest screenshot. Old images are never retained in model context.
-4. Ask local Ollama for a schema-constrained `Decision`. A brief public `summary`
-   and short `plan` are logged as THOUGHT and PLAN; hidden chain-of-thought is not
-   requested or displayed.
-5. Validate the action type and arguments. Unknown actions/fields are rejected.
-6. Apply intrinsic permission rules and a unique expiring approval, when needed.
-7. Dispatch one action. Return an outcome; capture again before the next decision.
-8. End with `GOAL_SATISFIED`, `GOAL_IMPOSSIBLE`, `MAX_STEPS_EXCEEDED` or a runtime,
-   permission, stop/error state. Completion is a model assessment, not a formal
-   proof of success.
+Submitting a goal hides the chat, including goals received from the dashboard.
+Completion updates status and logs; it never restores or activates the chat.
+The tray's explicit **Show GhostOS** action restores it. While a task is active,
+even that window is shown without activation. A compact non-activating task
+panel provides Stop, voice activity and optional browser help. Approval windows
+also use `WindowDoesNotAcceptFocus` and `WA_ShowWithoutActivating` and never
+call `exec()`, `raise_()` or `activateWindow()`.
 
-YAML recipes and `/action JSON` skip inference, but share validation, authorization
-and dispatch. They end as `RECIPE_COMPLETED` or `COMMAND_COMPLETED` to avoid
-claiming the goal was visually verified. The recipe step budget includes all
-steps; increase `max_steps` before a longer recipe. A deterministic compression
-of old outcomes bounds text without another model call. Image resize transforms
-map model pixels back to primary-monitor physical pixels; no extra global DPI
-factor is applied to physical screenshots/UIA bounds. Multi-monitor targeting is
-not implemented. DPI scale queries are diagnostic and available for future
-logical-coordinate integrations.
+GhostOS UI handles carry a Windows property. `FocusGuard` remembers the last
+external foreground window and refuses native input into GhostOS's own windows.
+`focus_window` restores/maximizes a target, temporarily attaches input queues,
+requests foreground transfer and verifies the actual foreground handle. All
+attachments are detached in `finally`. Windows can deny input/focus on UAC,
+locked or protected desktops; failed verification is reported and re-observed,
+never treated as proof that the user's goal is impossible.
 
-## Hybrid engines
+Known applications are discovered through Windows App Paths and fixed installed
+locations. Executables are launched with argument arrays and `shell=False`.
+Recovery no longer invokes Windows Search or Alt+Tab. Legacy recipe strategy
+`search` maps to native launch. Arbitrary approved PowerShell runs invisibly with
+CREATE_NO_WINDOW, a per-command timeout, bounded output and a kill-on-close job.
+It does not request elevation or bypass execution policy.
 
-UIA exposes current element IDs and physical bounds. Mouse fallback is an optional
-OpenCV-labelled grid on the latest model screenshot. Native keyboard shortcuts
-and packaged `shortcuts.json` commands take precedence. Unicode typing uses
-SendInput rather than modifying the clipboard. GUI approval restores the captured
-foreground target before releasing the worker, and the worker checks focus again.
-Failed foreground restoration denies the action.
+## Navigation engines
 
-Playwright runs inside the worker thread that created it, with an isolated Edge or Chrome
-profile. A goal explicitly naming Chrome selects the Chrome channel. When `cdp_url` is explicitly configured, it attaches to a Chromium
-browser on loopback and uses that existing context. The app does not enable a
-remote-debugging port for you. Closing an attached connection does not deliberately
-close the user-owned browser. Browser form fills and ambiguous clicks are subject
-to approval; all action effects still require subsequent observation.
+Browser actions use a loopback CDP connection to Chrome/Edge first. A separate
+GhostOS browser profile is provisioned automatically, or the user can supply a
+loopback endpoint. A read-only DOM excerpt provides selector context. Failure
+switches the run to native controls and offers an optional setup explanation.
+Uncertain form operations are never automatically replayed. Browser processes
+and result tabs remain open after successful worker exit. See [browser setup](browser_control.md).
 
-Game mode uses the same decision boundary, with UIA/grids disabled and short
-relative DirectInput/SendInput actions. Fast OpenCV polling provides template
-observations between slower model calls. It is not a real-time competitive game
-AI and does not bypass protected input systems.
+UIA provides current physical control bounds. `ui_click` verifies the foreground
+window and moves the real cursor to the current element centre. Coordinate
+clicks, smooth moves, double clicks, drag/drop, vertical/horizontal scrolling,
+and left/right/middle/X1/X2 buttons share `MouseDriver`. Screenshot coordinates
+are transformed to primary-monitor physical pixels exactly once. The native
+backend uses SetCursorPos, GetCursorPos and checked SendInput. Movement uses
+smoothstep interpolation, checks Stop every 10ms and verifies the endpoint.
+Drags always release their button, including on errors and cancellation. Debug
+MOUSE events include requested/observed coordinates and button operations.
+Target selection from vision remains primary-monitor only; the safety border
+covers all monitors. A user moving the cursor or a protected input surface can
+invalidate an action; this is detected rather than claiming universal success.
 
-## Recovery, safety and lifecycle
+Game Mode uses relative SendInput/PyDirectInput, short key bursts and fast OpenCV
+template observations between slower vision calls. UIA and heavy grids are off.
+It is not a frame-rate game AI and does not bypass protected input systems.
 
-`Recovery` owns a finite ledger of focus, installed-app launch, Windows Search,
-Alt+Tab, keyboard navigation and fresh-observation attempts. The app comes only
-from the user's explicit goal, not from page content. Preflight resolves named
-apps before inference. A first model `GOAL_IMPOSSIBLE` decision triggers the next
-unused fallback; termination requires an exhausted ledger and fresh observations.
-Each fallback is permission checked. Windows Search requires Balanced approval
-because Enter may launch a result. It never installs missing applications.
+## Persistent execution
 
-No screen change within two seconds triggers fresh targets/recovery, not a replay
-of the last action. Uncertain submissions and scripts are never blindly repeated.
-API/JSON failures retry three times, then return `MODEL_ERROR`. UIA errors fall
-back to vision. Model-decision cycles obey `max_steps`; the separate fallback
-ledger has at most six bounded stages. All work obeys the supervisor deadline.
-Permission denial, emergency stop and privilege barriers stop immediately.
+`max_steps=0` and `max_runtime=0` mean **unlimited**, the defaults. Nonzero limits
+are optional in AI settings. Old default 40-step/600-second settings migrate to
+unlimited; other saved limits are preserved. Scheduled task execution time is
+also unlimited. Individual network calls, commands, microphone recordings and
+approval requests retain timeouts so Stop and error reporting remain useful.
 
-A separate Qt indicator process creates four thin topmost transparent-for-input,
-non-focusable edge windows per monitor. Windows 10 2004+ capture exclusion avoids
-putting the border into screenshots. Older builds display the thin edge pixels.
-The process signals readiness before automation starts, follows screen geometry,
-and closes on success/error/stop. The supervisor stops automation if the
-indicator process dies. Exclusive fullscreen/secure desktops can suppress overlays;
-this feature does not bypass those Windows restrictions.
+A model GOAL_IMPOSSIBLE answer becomes a BLOCKED progress event. Native focus,
+direct launch and fresh observations are attempted, followed by cancellable
+cooldowns and replanning. Exhausting the initial recovery ledger does not end
+the task. Repeated invalid/model transport replies retry with a capped backoff.
+The goal remains active until success, Stop, an optional explicit limit,
+permission denial/expiry, or an unrecoverable capture/process/system error.
+There is no automatic retry of scripts, submissions or deletions with uncertain
+outcomes. Persistence is not permission to bypass consent or Windows UAC.
 
-PowerShell runs with a bounded time/output budget, no profile, no elevation and no
-execution-policy bypass. Each shell child is assigned to a Windows kill-on-close
-Job Object; cleanup also kills its descendant tree. The global brake sets the
-cancel event, terminates the owned worker tree and releases pressed inputs. It
-does not shut down Windows or kill every Python/Ollama process. Cancellation
-cannot undo writes or external requests that already completed. The supervisor
-also enforces a total deadline if a third-party automation API hangs.
+Validated YAML recipes and explicit `/action JSON` bypass model inference but
+share permission checks. They report RECIPE_COMPLETED/COMMAND_COMPLETED, not
+visually verified success. Natural-language success is a model assessment.
 
-Permissions govern agent dispatch, not a security sandbox. Tier 3 arbitrary shell
-commands have the logged-in user's full authority and could spawn detached or
-externally scheduled work; no user-space stop button can guarantee cancellation
-of all effects of arbitrary scripts. No tier can automatically handle UAC.
-Refusing elevated app startup avoids accidentally granting a privileged token.
+## Responsiveness and local inference
 
-Event queues are bounded manager queues so terminating a worker while it sends a
-large screenshot does not corrupt the supervisor's IPC queue. The in-memory bus
-retains a bounded event journal and one latest frame. Session JSONL logs persist
-under user application data. Screenshot disk logging is opt-in and off by default.
-WebRTC VAD consumes 20ms mono PCM frames and retains a short pre-roll. Three
-voiced frames begin an utterance; 0.9 seconds of silence ends it. No-speech,
-maximum-duration and microphone-disconnect paths are bounded. Cancellation and
-empty transcripts cannot submit goals. Local Whisper is cached, uses CPU int8,
-and transcribes outside Qt. A microphone-level signal drives the waveform.
+Process startup, commands, recognition, speech and frame decoding stay outside
+Qt's GUI thread. Logs update in bounded batches; frames replace old frames rather
+than accumulating. Hidden previews skip extra read-only capture. Model requests
+contain one current image and bounded text history; old results use deterministic
+compression without a second inference. Default images are 1024px wide, with a
+512-token response budget. UIA provider calls can stall inside a third-party
+provider; the process supervisor and emergency brake can terminate that worker.
+An optional runtime limit can additionally bound unattended runs.
 
-One dedicated SAPI/COM thread owns the speech engine and a bounded, cancellable
-queue. Acknowledgment and execution start together; speech never blocks actions.
-Only `EXECUTING` events after authorization are narrated. Typed values, passwords
-and script contents are not read aloud. Windows voice ID, rate, narration and
-completion speech are independently configurable. No audio is sent to a hosted
-service.
+THOUGHT/PLAN events are brief public progress assessments and intended actions,
+not hidden chain-of-thought. Page text and command output are untrusted data.
+All model/recipe/API actions use the same strict Pydantic argument validation.
 
-## Automation and packaging
+## Voice and approvals
 
-Recipes are finite validated YAML, with no eval/interpolation. Directory watcher
-changes are debounced; busy runs coalesce. Task Scheduler XML uses InteractiveToken
-and LeastPrivilege, so screen workflows need an unlocked logged-in desktop. It
-never stores account passwords or silently replaces an existing task.
+WebRTC VAD detects utterance endpoints from 20ms PCM frames, with pre-roll,
+noise rejection, silence timeout and bounded recording duration. Cached local
+Whisper transcribes on CPU int8. The waveform uses real microphone levels.
+A voice goal starts immediately with an asynchronous "On it" acknowledgment.
 
-PyInstaller packages an onedir app with Qt/COM/Playwright/voice resources. An
-asInvoker manifest preserves Windows privilege boundaries. Inno Setup installs
-per-user. Tagged GitHub Actions builds test, freeze, install/uninstall smoke-test,
-then publish the installer, exact dependency inventory, documentation and hashes.
-The build job has read-only repository permissions; only the separate publish job
-receives contents-write access. There is no telemetry or hosted inference tier.
+The installer contains Piper 1.3, its embedded phonemizer and the pinned
+LJSpeech-medium neural voice. No API key or TTS download is needed after install.
+ONNX Runtime telemetry is disabled before creating any voice session. Speech
+runs in one owner thread with bounded messages, small playback chunks and
+cancellation tickets. Windows SAPI remains a selectable fallback. Narration
+starts only after authorization and never reads field values or scripts aloud.
+
+Voice approval is off by default. When enabled it listens only for one current,
+expiring permission request, after acknowledgment playback and an echo cooldown.
+Only exact affirmative/negative phrases resolve it; ambiguous speech does not.
+Request IDs, expiry and Stop are checked again before delivering the answer.
+Buttons and the authenticated phone dashboard remain available. It is ordinary
+spoken consent, not speaker authentication; other people audible to the mic can
+answer. Recognition requires the separate first-run Whisper model download.
+
+## Safety, logs and packaging
+
+Tier 1 confirms every action. Tier 2 auto-approves non-consequential navigation,
+read-only browser state and direct known-app launch; typing, ambiguous clicks,
+drags, form input, scripts and game keys/clicks require consent. Tier 3 approves
+all supported non-elevated actions. The parent restores/validates an approved
+native target before releasing input. No tier handles UAC automatically.
+
+The emergency brake sets cancellation first, kills the owned worker tree and
+releases held keys and all mouse buttons. It cannot undo completed side effects.
+The bounded in-memory bus retains one frame; JSONL audit logs persist per run.
+Disk screenshots are opt-in. Logs may contain user text and page data.
+
+PyInstaller bundles the custom multi-resolution ICO and voice resources. The
+window, taskbar, Start Menu shortcut and Inno wizard share GhostOS identity.
+An asInvoker/Per-Monitor-V2 manifest preserves privilege and coordinate behavior.
+The main-push/tag workflow tests, freezes, exercises native mouse input in a
+disposable window, synthesizes neural speech without audio hardware, checks the
+indicator, compiles Inno Setup, and tests install/uninstall before publishing
+an EXE, versioned documentation, dependency inventory and checksums. Installers
+are currently unsigned. The full app remains free under GPL-3.0-or-later.

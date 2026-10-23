@@ -13,6 +13,8 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description='GhostOS — local Windows OS agent')
     p.add_argument('--version', action='version', version=VERSION)
     p.add_argument('--diagnostics', action='store_true')
+    p.add_argument('--input-smoke-test', action='store_true', help='Move/click inside a disposable native test window')
+    p.add_argument('--voice-smoke-test', action='store_true')
     p.add_argument('--setup', action='store_true')
     p.add_argument('--indicator-smoke-test', action='store_true', help='Check the activity indicator lifecycle without computer input')
     p.add_argument('--non-interactive', action='store_true', help='Deny actions needing human approval')
@@ -30,6 +32,10 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = parser().parse_args(argv)
+    if args.voice_smoke_test:
+        from agent.neural_speech import smoke_test
+        smoke_test()
+        return 0
     if args.diagnostics:
         from agent.diagnostics import diagnostics
         report = diagnostics()
@@ -39,6 +45,9 @@ def main(argv=None) -> int:
         print('GhostOS requires Windows 10/11 x64.', file=sys.stderr)
         return 2
     enable_dpi_awareness()  # Before Qt, UIA or screenshot imports.
+    if args.input_smoke_test:
+        from ui.input_probe import run_probe
+        return run_probe()
     if args.indicator_smoke_test:
         from ui.activity_border import ActivityIndicator
         indicator = ActivityIndicator(mp.get_context('spawn'))

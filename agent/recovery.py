@@ -15,13 +15,11 @@ class Recovery:
         self.position = 0
         self.steps = []
         if self.app:
-            for strategy in ('focus', 'launch', 'search'):
+            for strategy in ('focus', 'launch'):
                 self.steps.append(RecoveryStep(f'{strategy.title()} {self.app}',
                     (Action(kind='ensure_app', args={'name': self.app, 'strategy': strategy}),)))
         if not game_mode:
-            self.steps += [RecoveryStep('Switch to another window', (Action(kind='hotkey', args={'keys': ['alt', 'tab']}),)),
-                           RecoveryStep('Refresh focus and try keyboard navigation',
-                                        (Action(kind='focus'), Action(kind='hotkey', args={'keys': ['tab']})))]
+            self.steps.append(RecoveryStep('Restore the last external window', (Action(kind='focus'),)))
         self.steps.append(RecoveryStep('Take a fresh observation and reassess the goal',
                                        (Action(kind='wait', args={'seconds': 0.4}),)))
 
@@ -49,7 +47,8 @@ class Recovery:
             emit('RECOVERY_RESULT', message=outcome)
             success = False
         self.history.append(outcome)
+        self.history = self.history[-12:]
         return success
 
     def context(self):
-        return '\nRecovery attempts (do not repeat):\n' + '\n'.join(self.history)[-3000:]
+        return '\nRecent recovery outcomes:\n' + '\n'.join(self.history)[-3000:]

@@ -167,8 +167,14 @@ def configure_voice(engine, settings):
     engine.setProperty('volume', settings.speech_volume)
 
 
+class SpeechTicket:
+    def __init__(self):
+        self.done = threading.Event()
+        self.cancelled = False
+
+
 class SpeechService:
-    """One COM owner; bounded queue, generation-based cancellation, no speech on the UI thread."""
+    """Single owner, bounded queue, cancellation tickets and offline neural speech."""
     def __init__(self, settings, on_error=lambda message: None):
         self.settings, self.on_error = settings, on_error
         self.messages = queue.Queue(maxsize=4)
@@ -178,62 +184,90 @@ class SpeechService:
         self.thread = None
 
     def say(self, text, priority=False, settings=None):
+        ticket = SpeechTicket()
         if self.closed.is_set() or not text.strip():
-            return
+            ticket.done.set()
+            return ticket
         if priority:
             self.cancel()
         with self.lock:
-            if not self.thread or not self.thread.is_alive():
-                self.thread = threading.Thread(target=self._run, daemon=True, name='GhostOS-speech')
-                self.thread.start()
-            item = (self.generation, text[:400], settings)
+            item = (self.generation, text[:400], settings, ticket)
             try:
                 self.messages.put_nowait(item)
             except queue.Full:
                 try:
-                    self.messages.get_nowait()
+                    old = self.messages.get_nowait()[3]
+                    old.cancelled = True
+                    old.done.set()
                 except queue.Empty:
                     pass
                 self.messages.put_nowait(item)
+            if not self.thread or not self.thread.is_alive():
+                self.thread = threading.Thread(target=self._run, daemon=True, name='GhostOS-speech')
+                self.thread.start()
+        return ticket
 
     def cancel(self):
         with self.lock:
             self.generation += 1
             while True:
                 try:
-                    self.messages.get_nowait()
+                    ticket = self.messages.get_nowait()[3]
+                    ticket.cancelled = True
+                    ticket.done.set()
                 except queue.Empty:
                     break
 
     def _run(self):
-        engine = None
+        engine = neural = None
+        neural_failed = False
         try:
-            engine = _init_speech()
             while not self.closed.is_set():
                 try:
-                    generation, text, override = self.messages.get(timeout=0.1)
+                    generation, text, override, ticket = self.messages.get(timeout=0.1)
                 except queue.Empty:
                     continue
-                if generation != self.generation:
-                    continue
-                configure_voice(engine, override or self.settings())
-                engine.say(text)
-                engine.startLoop(False)
+                cancelled = lambda: self.closed.is_set() or generation != self.generation
                 try:
-                    while not self.closed.is_set():
-                        engine.iterate()  # Pumps SAPI/COM events on its owning thread.
-                        if generation != self.generation:
-                            engine.stop()
-                            break
-                        if not engine.isBusy():
-                            break
-                        self.closed.wait(0.015)
+                    if cancelled():
+                        continue
+                    settings = override or self.settings()
+                    if settings.speech_engine == 'piper' and not neural_failed:
+                        try:
+                            if neural is None:
+                                from agent.neural_speech import PiperSpeech
+                                neural = PiperSpeech()
+                            neural.play(text, settings, cancelled)
+                            continue
+                        except Exception as exc:
+                            neural_failed = True
+                            self.on_error(f'Neural voice unavailable; using installed Windows voice: {exc}')
+                    if engine is None:
+                        engine = _init_speech()
+                    if cancelled():
+                        continue
+                    configure_voice(engine, settings)
+                    engine.say(text)
+                    engine.startLoop(False)
+                    try:
+                        while not self.closed.is_set():
+                            engine.iterate()
+                            if cancelled():
+                                engine.stop()
+                                break
+                            if not engine.isBusy():
+                                break
+                            self.closed.wait(0.015)
+                    finally:
+                        engine.endLoop()
+                except Exception as exc:
+                    self.on_error(f'Local speech unavailable: {exc}')
                 finally:
-                    engine.endLoop()
-        except Exception as exc:
-            self.on_error(f'Local speech unavailable: {exc}')
+                    ticket.cancelled = cancelled()
+                    ticket.done.set()
         finally:
-            _close_speech(engine)
+            if engine is not None:
+                _close_speech(engine)
 
     def close(self):
         self.cancel()

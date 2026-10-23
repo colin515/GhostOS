@@ -95,21 +95,17 @@ class WindowsApps:
 
     def focus(self, name):
         self._check()
-        import win32con
-        import win32gui
+        from agent.window_focus import focus_window
         windows = self.windows(name)
         if not windows:
-            raise LookupError(f'{APPS[canonical_app(name)].label} has no visible window')
+            raise LookupError(f'{name} has no visible window')
         last_error = None
         for hwnd in windows:
-            self._check()
             try:
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE if win32gui.IsIconic(hwnd) else win32con.SW_SHOW)
-                win32gui.SetForegroundWindow(hwnd)
-                if win32gui.GetForegroundWindow() != hwnd:
-                    raise RuntimeError('Windows has not granted foreground focus')
-                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-                return f'{APPS[canonical_app(name)].label} is focused and maximized'
+                focus_window(hwnd, self.stop, maximize=True)
+                return f'{name} is focused and maximized'
+            except InterruptedError:
+                raise
             except Exception as exc:
                 last_error = exc
         raise RuntimeError(f'Could not focus {name}: {last_error}')
@@ -133,7 +129,7 @@ class WindowsApps:
         except (LookupError, RuntimeError):
             if strategy == 'focus':
                 raise
-        if strategy == 'launch':
+        if strategy in ('launch', 'search'):
             # Do not launch duplicate processes when an existing app merely rejects focus.
             if self.windows(name):
                 raise RuntimeError(f'{name} is running; try alternate window navigation')
@@ -141,16 +137,5 @@ class WindowsApps:
             if path is None:
                 raise FileNotFoundError(f'{name} was not found in App Paths or standard installation locations')
             subprocess.Popen([str(path)], shell=False)
-            return self._wait_for_window(name)
-        if strategy == 'search':
-            import pyautogui as pg
-            # This whole fallback requires approval in Balanced mode: Enter may launch a search result.
-            pg.press('win')
-            if self.stop.wait(0.4):
-                self._check()
-            type_text(APPS[name].label)
-            if self.stop.wait(0.8):
-                self._check()
-            pg.press('enter')
             return self._wait_for_window(name)
         raise ValueError('Unknown recovery strategy')

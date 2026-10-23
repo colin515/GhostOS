@@ -50,6 +50,10 @@ jobs:
           dist\GhostOS\GhostOS.exe --version
           dist\GhostOS\GhostOS.exe --diagnostics
           if ($LASTEXITCODE -ne 0) { throw 'Frozen import check failed' }
+          dist\GhostOS\GhostOS.exe --input-smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen native mouse check failed' }
+          dist\GhostOS\GhostOS.exe --voice-smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen neural speech check failed' }
           dist\GhostOS\GhostOS.exe --indicator-smoke-test
           if ($LASTEXITCODE -ne 0) { throw 'Frozen indicator check failed' }
       - name: Install Inno Setup

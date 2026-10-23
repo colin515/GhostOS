@@ -7,7 +7,7 @@ from config import VERSION, RESOURCE_DIR, dpi_scale
 
 def diagnostics():
     modules = ('PyQt6.QtWidgets', 'fastapi', 'uvicorn', 'ollama', 'playwright', 'cv2', 'PIL',
-               'psutil', 'webrtcvad', 'pynput', 'uiautomation', 'win32api', 'faster_whisper', 'pyttsx3')
+               'piper', 'onnxruntime', 'sounddevice', 'psutil', 'webrtcvad', 'pynput', 'uiautomation', 'win32api', 'faster_whisper', 'pyttsx3')
     available, errors = {}, {}
     windows_only = {'pynput', 'uiautomation', 'win32api'}
     for name in modules:
@@ -20,5 +20,5 @@ def diagnostics():
             errors[name] = f'{type(exc).__name__}: {exc}'
     return {'version': VERSION, 'windows': os.name == 'nt', 'dpi_scale': dpi_scale(),
             'resources': {name: (RESOURCE_DIR / name).exists() for name in
-                          ('docs/installation.md', 'ui/dashboard.html', 'shortcuts.json', 'VERSION')},
+                          ('assets/GhostOS.ico', 'assets/voice/en_US-ljspeech-medium.onnx', 'docs/installation.md', 'ui/dashboard.html', 'shortcuts.json', 'VERSION')},
             'modules': available, 'import_errors': errors}

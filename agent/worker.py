@@ -21,7 +21,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 raise RuntimeError('Event channel overloaded')
 
     controller = None
-    deadline = time.monotonic() + settings.max_runtime
+    deadline = time.monotonic() + settings.max_runtime if settings.max_runtime else float('inf')
     try:
         from config import enable_dpi_awareness
         enable_dpi_awareness()
@@ -65,8 +65,28 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                     if recovery.attempt(controller, emit, 'Preparing the application requested in your goal'):
                         break
                 feedback = recovery.context()
-            brain = Brain(settings) if autonomous else None
-            for step in range(settings.max_steps):
+                if recovery.app in ('chrome', 'edge'):
+                    import re
+                    match = re.search(r'(?<![\w@./])(?:https?://)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:/[^\s<>"\']*)?', goal or '')
+                    if match:
+                        from agent.models import Action
+                        url = match.group(0).rstrip('.,;!?')
+                        if not url.startswith(('https://', 'http://')):
+                            url = 'https://' + url
+                        try:
+                            browser_state = str(controller.execute(Action(kind='browser_navigate', args={'url':url})))
+                            emit('RESULT', message=browser_state[:4000])
+                        except (PermissionError, InterruptedError):
+                            raise
+                        except Exception as exc:
+                            emit('WARNING', message=f'Browser preflight: {exc}. Replanning with native controls.')
+            brain = None
+            step = -1
+            while not stop.is_set():
+                step += 1
+                if settings.max_steps and step >= settings.max_steps:
+                    emit('STATUS', status='MAX_STEPS_EXCEEDED')
+                    return
                 safety.check()
                 if time.monotonic() > deadline:
                     emit('STATUS', status='MAX_RUNTIME_EXCEEDED')
@@ -75,7 +95,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 controller.frame = frame
                 emit('FRAME', image=frame.base64(grid=not settings.game_mode), step=step)
                 try:
-                    ui = tree.snapshot() if not settings.game_mode else []
+                    ui = tree.snapshot() if not settings.game_mode and not getattr(getattr(controller, 'web', None), 'page', None) else []
                 except Exception as exc:
                     ui = []
                     emit('WARNING', message=f'Accessibility provider unavailable; using vision and keyboard navigation: {exc}')
@@ -85,29 +105,32 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                     action = fast
                 else:
                     try:
+                        if brain is None:
+                            brain = Brain(settings)
                         decision = brain.next(goal, frame, ui, browser_state, feedback, emit)
                         inference_errors = 0
                     except (InterruptedError, PermissionError):
                         raise
                     except Exception as exc:
                         inference_errors += 1
-                        emit('ERROR', message=f'Local model response failed ({inference_errors}/3): {type(exc).__name__}: {exc}')
-                        if inference_errors >= 3:
-                            emit('STATUS', status='MODEL_ERROR', message='Ollama did not return a valid response after three attempts. Check model availability or increase its output budget.')
-                            return
+                        emit('ERROR', message=f'Local model response failed (attempt {inference_errors}): {type(exc).__name__}: {exc}')
                         feedback = 'Return one compact schema-valid decision. The last response was invalid or unavailable.' + recovery.context()
-                        if stop.wait(0.3):
+                        if stop.wait(min(30, 2 ** min(inference_errors, 5))):
                             safety.check()
                         continue
                     emit('THOUGHT', message=decision.summary)
                     emit('PLAN', steps=decision.plan)
                     if decision.status == 'GOAL_IMPOSSIBLE':
+                        emit('BLOCKED', message=decision.summary)
                         if not recovery.exhausted:
                             recovery.attempt(controller, emit, decision.summary)
-                            feedback = 'Do not give up on focus or navigation. Inspect this NEW observation after recovery, then continue toward the original goal.' + recovery.context()
-                            continue
-                        emit('STATUS', status='GOAL_IMPOSSIBLE', message=decision.summary, recovery_attempts=recovery.history)
-                        return
+                        else:
+                            # Re-observe with a cooldown; never replay an uncertain write.
+                            if stop.wait(min(15, 1 + stalls)):
+                                safety.check()
+                            stalls += 1
+                        feedback = 'The goal remains active. Inspect fresh evidence, choose another safe strategy, or wait for the user to unblock the desktop. Focus is recoverable. Do not repeat uncertain writes.' + recovery.context()
+                        continue
                     if decision.status == 'GOAL_SATISFIED':
                         emit('STATUS', status=decision.status, message=decision.summary)
                         return
@@ -149,9 +172,6 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                             emit('RECOVERY', message='No screen change after two seconds. Refreshing targets; the previous action will not be replayed.')
                             if not recovery.exhausted:
                                 recovery.attempt(controller, emit, 'Screen did not change')
-                            elif stalls >= 3:
-                                emit('STATUS', status='GOAL_IMPOSSIBLE', message='Navigation fallbacks are exhausted and three verified observations still show no progress.', recovery_attempts=recovery.history)
-                                return
                             feedback += '\nTargets may be stale. Recalculate coordinates or use keyboard navigation. Never replay a submission or command after an uncertain outcome.'
                         else:
                             stalls = 0
@@ -163,8 +183,9 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                     if not autonomous:
                         raise
                     if recovery.exhausted:
-                        emit('STATUS', status='GOAL_IMPOSSIBLE', message=feedback, recovery_attempts=recovery.history)
-                        return
+                        if stop.wait(min(15, 1 + stalls)):
+                            safety.check()
+                        stalls += 1
                     recovery.attempt(controller, emit, feedback)
                 if brain:
                     brain.context.add(action.model_dump(), feedback)
@@ -175,7 +196,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 if fast is not None:
                     emit('STATUS', status='COMMAND_COMPLETED')
                     return
-            emit('STATUS', status='MAX_STEPS_EXCEEDED')
+            safety.check()
     except InterruptedError:
         emit('STATUS', status='STOPPED')
     except PermissionError as exc:

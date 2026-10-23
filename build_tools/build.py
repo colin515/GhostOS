@@ -15,6 +15,7 @@ def main():
     args = p.parse_args()
     if os.name != 'nt' or sys.maxsize < 2**32:
         raise SystemExit('Build with Windows and 64-bit Python 3.11')
+    subprocess.run([sys.executable, str(ROOT / 'build_tools' / 'fetch_voice.py')], check=True)
     version = (ROOT / 'VERSION').read_text().strip()
     import re
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
@@ -31,16 +32,16 @@ StringStruct('FileDescription','GhostOS local Windows agent'), StringStruct('Fil
 StringStruct('ProductName','GhostOS'), StringStruct('ProductVersion','{version}'),
 StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('Translation',[1033,1200])])])''', encoding='utf-8')
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir',
-               '--name', 'GhostOS', '--version-file', str(version_info),
+               '--name', 'GhostOS', '--icon', str(ROOT / 'assets' / 'GhostOS.ico'), '--version-file', str(version_info),
                '--additional-hooks-dir', str(ROOT / 'build_tools' / 'hooks'),
                '--manifest', str(ROOT / 'build_tools' / 'app.manifest'),
                '--console']
     if not args.console:
         command += ['--hide-console', 'hide-early']
-    for source, dest in [('VERSION', '.'), ('shortcuts.json', '.'), ('docs', 'docs'), ('recipes', 'recipes'),
+    for source, dest in [('assets', 'assets'), ('VERSION', '.'), ('shortcuts.json', '.'), ('docs', 'docs'), ('recipes', 'recipes'),
                          ('ui/dashboard.html', 'ui'), ('LICENSE', '.')]:
         command += ['--add-data', f'{source}{os.pathsep}{dest}']
-    for module in ('faster_whisper', 'ctranslate2', 'uiautomation', 'pyttsx3', 'playwright'):
+    for module in ('faster_whisper', 'ctranslate2', 'uiautomation', 'pyttsx3', 'playwright', 'piper', 'onnxruntime'):
         command += ['--collect-all', module]
     for module in ('pynput.keyboard._win32', 'pynput.mouse._win32', 'pyttsx3.drivers.sapi5',
                    'win32timezone', 'pythoncom', 'pywintypes', 'win32com.client',

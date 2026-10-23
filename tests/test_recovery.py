@@ -1,6 +1,5 @@
 from types import SimpleNamespace
 import threading
-import sys
 import pytest
 from agent.recovery import Recovery
 from agent.windows_apps import requested_app, canonical_app, WindowsApps
@@ -22,8 +21,8 @@ def test_chrome_ladder_exhausts_distinct_fallbacks_before_failure():
     controller = SimpleNamespace(execute=lambda action: actions.append(action) or 'done')
     while not recovery.exhausted:
         recovery.attempt(controller, lambda kind, **kw: events.append((kind, kw)), 'blocked')
-    assert len(recovery.history) == 6
-    assert [a.args['strategy'] for a in actions if a.kind == 'ensure_app'] == ['focus','launch','search']
+    assert len(recovery.history) == 4
+    assert [a.args['strategy'] for a in actions if a.kind == 'ensure_app'] == ['focus','launch']
     assert not any(a.kind == 'shell' for a in actions)
     count = len(actions)
     assert not recovery.attempt(controller, lambda *a, **kw: None, 'blocked')
@@ -60,14 +59,11 @@ def test_native_focus_checks_foreground_and_maximizes(monkeypatch):
     monkeypatch.setattr(app, '_check', lambda: None)
     monkeypatch.setattr(app, 'windows', lambda name: [123])
     calls = []
-    gui = SimpleNamespace(IsIconic=lambda hwnd: True,
-                          ShowWindow=lambda hwnd, mode: calls.append((hwnd, mode)),
-                          SetForegroundWindow=lambda hwnd: None, GetForegroundWindow=lambda: 123)
-    monkeypatch.setitem(sys.modules, 'win32gui', gui)
-    monkeypatch.setitem(sys.modules, 'win32con', SimpleNamespace(SW_RESTORE=9, SW_SHOW=5, SW_MAXIMIZE=3))
+    import agent.window_focus
+    monkeypatch.setattr(agent.window_focus, 'focus_window', lambda hwnd, stop, maximize: calls.append((hwnd, maximize)))
     assert 'focused' in app.focus('chrome')
-    assert calls == [(123,9), (123,3)]
-    gui.GetForegroundWindow = lambda: 999
+    assert calls == [(123, True)]
+    monkeypatch.setattr(agent.window_focus, 'focus_window', lambda *a, **kw: (_ for _ in ()).throw(RuntimeError('denied')))
     with pytest.raises(RuntimeError, match='focus'):
         app.focus('chrome')
 

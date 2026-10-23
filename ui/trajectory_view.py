@@ -8,6 +8,8 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPlainTextEdit
 
 
 def event_text(event):
+    if event.get('kind') == 'MOUSE':
+        return str({key: value for key, value in event.items() if key in ('phase', 'position', 'start', 'target', 'button', 'clicks', 'ticks')})
     if event.get('message'):
         return str(event['message'])[:1800]
     if event.get('goal'):
@@ -90,7 +92,7 @@ class TrajectoryView(QWidget):
     def add_events(self, events):
         lines = []
         for event in events:
-            if event['kind'] == 'INFERENCE':
+            if event['kind'] in ('INFERENCE', 'AUDIO_LEVEL'):
                 continue
             label = {'THOUGHT': 'PROGRESS', 'RESULT': 'DONE', 'STARTED': 'GOAL'}.get(event['kind'], event['kind'])
             lines.append(label + '  ' + event_text(event))

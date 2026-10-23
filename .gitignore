@@ -10,3 +10,5 @@ logs/
 settings.json
 dashboard-token.txt
 browser-profile/
+assets/voice/*.onnx
+assets/voice/*.download

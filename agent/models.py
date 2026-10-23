@@ -18,7 +18,22 @@ class Text(Args):
 class Click(Args):
     x: int = Field(ge=0)
     y: int = Field(ge=0)
-    button: Literal['left', 'right'] = 'left'
+    button: Literal['left', 'right', 'middle', 'x1', 'x2'] = 'left'
+    clicks: int = Field(default=1, ge=1, le=2)
+    duration: float = Field(default=0.35, ge=0.05, le=5)
+
+class Cursor(Args):
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
+    duration: float = Field(default=0.35, ge=0.05, le=5)
+
+class Drag(Click):
+    to_x: int = Field(ge=0)
+    to_y: int = Field(ge=0)
+
+class Scroll(Args):
+    ticks: int = Field(ge=-100, le=100)
+    horizontal: bool = False
 
 class Shell(Args):
     script: str = Field(min_length=1, max_length=20000)
@@ -65,14 +80,14 @@ class Template(Args):
     threshold: float = Field(default=0.85, ge=0.5, le=1)
 
 ARG_TYPES = {
-    'hotkey': Keys, 'type_text': Text, 'click': Click, 'shell': Shell, 'wait': Delay,
+    'mouse_move': Cursor, 'drag': Drag, 'scroll': Scroll, 'hotkey': Keys, 'type_text': Text, 'click': Click, 'shell': Shell, 'wait': Delay,
     'open_app': App, 'ensure_app': EnsureApp, 'ui_click': Element, 'browser_navigate': URL,
     'browser_click': Locator, 'browser_fill': Fill, 'browser_snapshot': Empty,
     'game_move': Move, 'game_key': GameKey, 'game_click': Empty,
     'template_click': Template, 'focus': Empty,
 }
 ActionKind = Literal[
-    'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click',
+    'mouse_move', 'drag', 'scroll', 'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click',
     'browser_navigate', 'browser_click', 'browser_fill', 'browser_snapshot',
     'game_move', 'game_key', 'game_click', 'template_click', 'focus', 'ensure_app',
 ]
@@ -108,6 +123,8 @@ browser_snapshot {}; game_move {dx:50,dy:0}; game_key {key:"w",duration:0.2};
 game_click {}; template_click {name:"target.png",threshold:0.85}.
 Coordinates are pixels in the latest resized screenshot. UIA IDs only apply to current tree.
 ensure_app {name:"chrome",strategy:"focus"|"launch"|"search"} focuses/maximizes a running app,
-launches an installed app, or uses Windows Search. Apps: chrome, edge, firefox, notepad, calculator, explorer, paint.
-Use keyboard navigation and ensure_app before mouse clicks. No arbitrary Python execution.
+launches an installed app, or launches natively (legacy search maps to direct launch). Apps: chrome, edge, firefox, notepad, calculator, explorer, paint.
+Use native app launch, browser DOM actions and actual mouse control. Keyboard shortcuts are a fallback.
+mouse_move {x:200,y:100,duration:0.35}; drag {x:100,y:100,to_x:300,to_y:300,button:"left",duration:0.8}; scroll {ticks:-3,horizontal:false}.
+click supports left/right/middle/x1/x2 buttons and clicks:2 for double click. No arbitrary Python execution.
 '''

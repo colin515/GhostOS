@@ -34,6 +34,10 @@ def draw_ghost(painter, rect):
 
 
 def ghost_icon():
+    from config import RESOURCE_DIR
+    icon = RESOURCE_DIR / 'assets' / 'GhostOS.ico'
+    if icon.is_file():
+        return QIcon(str(icon))
     pixmap = QPixmap(128, 128)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)

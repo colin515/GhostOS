@@ -7,7 +7,7 @@ from agent.models import Action
 class Recipe(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     name: str = Field(min_length=1, max_length=200)
-    steps: list[Action] = Field(min_length=1, max_length=1000)
+    steps: list[Action] = Field(min_length=1)
 
 
 def load_recipe(path: Path) -> Recipe:

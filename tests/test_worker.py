@@ -101,20 +101,23 @@ def test_first_impossible_verdict_recovers_and_reobserves(harness):
     decisions.extend([Decision(status='GOAL_IMPOSSIBLE', summary='browser is unfocused'),
                       Decision(status='GOAL_SATISFIED', summary='browser is now available')])
     events = run()
-    assert actions[0].kind == 'hotkey'
-    assert actions[0].args['keys'] == ['alt', 'tab']
+    assert actions[0].kind == 'focus'
     assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
     assert not any(e.get('status') == 'GOAL_IMPOSSIBLE' for e in events)
 
 
-def test_impossible_requires_exhausted_recovery_and_fresh_verdict(harness):
+def test_exhausted_recovery_keeps_goal_active_until_success(harness, monkeypatch):
     settings, actions, decisions, run = harness
-    settings.max_steps = 8
-    decisions.extend([Decision(status='GOAL_IMPOSSIBLE', summary='blocked') for _ in range(4)])
+    settings.max_steps = 0
+    settings.max_runtime = 0
+    original = threading.Event.wait
+    monkeypatch.setattr(threading.Event, 'wait', lambda self, timeout=None: self.is_set() if timeout else original(self, timeout))
+    decisions.extend([Decision(status='GOAL_IMPOSSIBLE', summary='blocked') for _ in range(8)])
+    decisions.append(Decision(status='GOAL_SATISFIED', summary='unblocked'))
     events = run()
-    terminal = next(e for e in events if e.get('status') == 'GOAL_IMPOSSIBLE')
-    assert len(terminal['recovery_attempts']) == 3
-    assert [a.kind for a in actions] == ['hotkey', 'focus', 'hotkey', 'wait']
+    assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
+    assert not any(e.get('status') == 'GOAL_IMPOSSIBLE' for e in events)
+    assert [a.kind for a in actions] == ['focus', 'wait']
 
 
 def test_explicit_chrome_goal_focuses_app_before_inference(harness):
@@ -126,11 +129,12 @@ def test_explicit_chrome_goal_focuses_app_before_inference(harness):
     assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
 
 
-def test_model_transport_errors_are_retried_and_not_called_impossible(harness):
+def test_model_transport_errors_are_retried_and_not_called_impossible(harness, monkeypatch):
     _, actions, _, run = harness
+    monkeypatch.setattr(threading.Event, 'wait', lambda self, timeout=None: self.is_set())
     events = run()
     assert not actions
-    assert any(e.get('status') == 'MODEL_ERROR' for e in events)
+    assert any(e.get('status') == 'MAX_STEPS_EXCEEDED' for e in events)
     assert not any(e.get('status') == 'GOAL_IMPOSSIBLE' for e in events)
 
 
@@ -144,3 +148,13 @@ def test_recovery_respects_declined_approval(harness, monkeypatch):
     events = run()
     assert not actions
     assert any(e.get('status') == 'PERMISSION_DENIED' for e in events)
+
+
+def test_default_unlimited_allows_more_than_one_thousand_actions(harness):
+    settings, actions, decisions, run = harness
+    settings.max_steps = settings.max_runtime = 0
+    decisions.extend([Decision(status='CONTINUE', summary='working', action=Action(kind='wait', args={'seconds':0.0})) for _ in range(1100)])
+    decisions.append(Decision(status='GOAL_SATISFIED', summary='done'))
+    events = run()
+    assert len(actions) == 1100
+    assert events[-2]['status'] == 'GOAL_SATISFIED'
