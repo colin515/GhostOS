@@ -27,10 +27,18 @@ def record_and_transcribe(settings, progress=print, seconds=5):
 
 
 def speak(text):
+    import os
     import pyttsx3
-    engine = pyttsx3.init()
+    engine = None
+    if os.name == 'nt':
+        import pythoncom
+        pythoncom.CoInitialize()
     try:
+        engine = pyttsx3.init()
         engine.say(text[:1500])
         engine.runAndWait()
     finally:
-        engine.stop()
+        if engine:
+            engine.stop()
+        if os.name == 'nt':
+            pythoncom.CoUninitialize()

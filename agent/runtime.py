@@ -244,9 +244,17 @@ class Runtime:
         from agent.web_dashboard import create_app
         self._web = uvicorn.Server(uvicorn.Config(create_app(self), host=self.settings.web_host,
                                   port=self.settings.web_port, log_level='warning', access_log=False, proxy_headers=False))
-        self._web_thread = threading.Thread(target=self._web.run, daemon=True)
+        server = self._web
+        def serve():
+            try:
+                server.run()
+            except (Exception, SystemExit) as exc:
+                self.bus.publish('ERROR', message=f'Dashboard failed to start: {exc}')
+            finally:
+                self._web = None
+        self._web_thread = threading.Thread(target=serve, daemon=True)
         self._web_thread.start()
-        self.bus.publish('SERVER', message=f'Dashboard listening on {self.local_ip}:{self.settings.web_port}')
+        self.bus.publish('SERVER', message=f'Starting dashboard on {self.local_ip}:{self.settings.web_port}')
 
     def _cli_events(self, cursor):
         for event in self.bus.after(cursor):
@@ -287,6 +295,8 @@ class Runtime:
         cursor = 0
         while True:
             cursor = self._cli_events(cursor)
+            if self._web_thread and not self._web_thread.is_alive():
+                raise RuntimeError('Dashboard server stopped; check the error log or port availability')
             if not self._web:
                 self._cli_approve()
             time.sleep(0.2)

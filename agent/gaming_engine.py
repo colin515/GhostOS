@@ -55,12 +55,14 @@ class GamingEngine:
         self.driver.PAUSE = 0.01
         self.driver.FAILSAFE = True
         self.stop, self.held = stop, set()
-        self.target = ctypes.windll.user32.GetForegroundWindow()
+        import win32gui
+        self.windows = win32gui
+        self.target = self.windows.GetForegroundWindow()
 
     def check_focus(self):
         if self.stop.is_set():
             raise InterruptedError('Stopped')
-        if ctypes.windll.user32.GetForegroundWindow() != self.target:
+        if self.windows.GetForegroundWindow() != self.target:
             raise RuntimeError('Game lost focus; no game input sent. Start a new run with the game focused.')
 
     def move(self, dx, dy):
