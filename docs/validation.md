@@ -1,4 +1,4 @@
-# Validation · GhostOS 1.2.2
+# Validation · GhostOS 1.2.3
 
 Automated unit/regression coverage runs on Linux and Windows. The release pipeline
 also installs all Windows dependencies, freezes the app, checks frozen imports,
@@ -39,3 +39,10 @@ unavailable, blocked focus, a >100-step task, right/middle/X-button interactions
 a cancelled drag, approval while chat is hidden, stale voice approval after Stop,
 and low-end CPU/GPU inference. Use Tier 1 initially and redact private audit logs
 before reporting problems.
+
+The upgrade test installs published 1.2.2, starts its background web runtime,
+then updates in place without specifying a destination. It checks the previous
+custom folder, termination of the old process, new binary version, native
+desktop startup, recovery of a corrupted settings file, explicit installer repair,
+a single Installed apps entry and retained recipes/models/logs. Bootstrap and
+settings recovery also have unit coverage.

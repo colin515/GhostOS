@@ -15,6 +15,10 @@ from agent.safety import ApprovalBroker, KillSwitch
 from agent.worker import run_worker
 
 
+class AlreadyRunning(RuntimeError):
+    pass
+
+
 class InstanceLock:
     def __init__(self, root):
         self.root, self.file = root, None
@@ -35,7 +39,7 @@ class InstanceLock:
                 fcntl.flock(self.file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
             self.file.close()
-            raise RuntimeError('Another GhostOS instance is already active') from exc
+            raise AlreadyRunning('Another GhostOS instance is running. Stop it from its tray icon, or run the new installer to close and update it.') from exc
         return self
 
     def __exit__(self, *_):

@@ -47,7 +47,7 @@ StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('T
                    'win32timezone', 'pythoncom', 'pywintypes', 'win32com.client',
                    'win32job', 'win32gui', 'win32api', 'sounddevice', 'webrtcvad', '_webrtcvad'):
         command += ['--hidden-import', module]
-    command += ['--exclude-module', 'PySide6', '--exclude-module', 'PyQt5', 'main.py']
+    command += ['--exclude-module', 'PySide6', '--exclude-module', 'PyQt5', 'launcher.py']
     subprocess.run(command, check=True)
     # Record the exact environment used for each executable; attach during release.
     manifest = subprocess.check_output([sys.executable, '-m', 'pip', 'freeze'], text=True)

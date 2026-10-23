@@ -77,8 +77,13 @@ jobs:
           if ($p.ExitCode -ne 0) { throw 'Install failed' }
           & "$target/GhostOS.exe" --diagnostics
           if ($LASTEXITCODE -ne 0) { throw 'Installed executable failed' }
+          & "$target/GhostOS.exe" --desktop-smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Installed desktop did not open' }
           $p = Start-Process "$target/unins000.exe" -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw 'Uninstall failed' }
+      - name: Upgrade an existing hidden installation and repair startup
+        shell: pwsh
+        run: ./build_tools/test_upgrade.ps1
       - name: Package versioned documentation and checksums
         shell: pwsh
         run: |

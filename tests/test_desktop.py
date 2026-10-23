@@ -80,3 +80,16 @@ def test_settings_split_keeps_ai_at_composer_and_voice_in_header(tmp_path):
     assert general.voice_approval.isVisible()
     assert not general.model.isVisible()
     general.close()
+
+
+def test_explicit_second_launch_reopens_existing_hidden_window(tmp_path):
+    from ui.app import MainWindow
+    app = QApplication.instance() or QApplication([])
+    runtime = fake_runtime(tmp_path)
+    window = MainWindow(runtime)
+    (tmp_path / 'show-window.request').write_text('explicit user launch')
+    window.poll()
+    app.processEvents()
+    assert window.isVisible()
+    assert not (tmp_path / 'show-window.request').exists()
+    window.close()

@@ -1,4 +1,4 @@
-# Installation · GhostOS 1.2.2
+# Installation · GhostOS 1.2.3
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ only. Internet is used to install packages and download models; subsequent model
 inference, screenshots and speech transcription stay local. Browser tasks use
 the network addresses requested by the user.
 
-Download **GhostOS_Installer_v1.2.2.exe** from the
+Download **GhostOS_Installer_v1.2.3.exe** from the
 [latest GitHub Release](https://github.com/colin515/GhostOS/releases/latest), run
 it, and open GhostOS from the Start Menu. Choose the `.exe` under **Assets**;
 the source ZIP is for developers. No Python installation is needed. The
@@ -118,3 +118,33 @@ A model's context window, GPU offload and inference speed still depend on hardwa
 
 Run `GhostOS.exe --indicator-smoke-test` to verify that the packaged activity
 border can start and close without moving the mouse, typing or calling Ollama.
+
+## Updating or repairing an installation that will not open
+
+Run the newest `GhostOS_Installer_v1.2.3.exe` directly. Opening the old app or
+uninstalling it first is not required. Setup keeps the same AppId, reuses its
+previous installation folder and replaces application files. Windows Restart
+Manager closes GhostOS processes holding those files, including hidden ones.
+Stop active work before updating: force-closing an agent cannot undo actions
+already completed. Setup does not automatically restart the previous session.
+
+Valid saved settings and downloaded models, recipes and logs remain in place.
+For a startup configuration problem, select **Reset settings to repair startup**
+in the installer. This backs up settings and returns to Strict mode/first-run
+setup; it does not download models again or erase their caches. The option is
+unchecked on later updates unless explicitly selected again. Malformed settings
+also recover automatically, with the original in `settings.backup_TIMESTAMP.json`.
+
+Clicking GhostOS again reopens an existing hidden desktop instance. If it is a
+headless/unresponsive instance instead, the launcher shows an error directing you
+to stop or update it. A stale `runtime.lock` file alone does not block startup.
+
+Startup exceptions display a Windows error dialog and write details to
+`%LOCALAPPDATA%\GhostOS\startup.log`; frozen module import failures are caught
+by a small bootstrap before the GUI is loaded. CLI diagnostics return a nonzero
+exit code without displaying a blocking dialog.
+
+Release CI installs published 1.2.2 in a custom folder, starts its hidden web
+runtime, upgrades without `/DIR`, and checks process shutdown, the installed
+version, real desktop startup, corrupted-settings recovery, same-version repair,
+one Installed apps entry and preservation of user files through uninstallation.

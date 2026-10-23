@@ -228,6 +228,13 @@ class MainWindow(QMainWindow):
         threading.Thread(target=self.runtime.stop, daemon=True).start()
 
     def poll(self):
+        request = self.runtime.settings.data_dir / 'show-window.request'
+        if request.exists():
+            try:
+                request.unlink()
+                self.show_from_tray()
+            except OSError:
+                pass
         self.runtime.preview_enabled = self.isVisible() and not self.isMinimized()
         events = self.runtime.bus.after(self.cursor)[:60]
         self.trajectory.add_events(events)
@@ -371,7 +378,7 @@ class MainWindow(QMainWindow):
         QApplication.instance().quit()
 
 
-def launch(runtime):
+def launch(runtime, smoke_test=False):
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName('GhostOS')
     app.setQuitOnLastWindowClosed(False)
@@ -383,6 +390,13 @@ def launch(runtime):
     app.setStyleSheet(STYLE)
     window = MainWindow(runtime)
     window.show()
+    from agent.startup import log_startup
+    log_startup('Desktop window ready')
+    if runtime.settings.startup_notice:
+        window.append_chat('GhostOS\n' + runtime.settings.startup_notice)
+        window.status.setText('Settings recovered · review AI settings before running')
+    if smoke_test:
+        QTimer.singleShot(750, window.close)
     if not runtime.settings.setup_complete:
         from ui.setup_wizard import SetupWizard
         if SetupWizard(runtime, window).exec() != 1:

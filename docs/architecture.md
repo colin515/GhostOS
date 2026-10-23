@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.2.2
+# Architecture · GhostOS 1.2.3
 
 The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
 LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,
@@ -137,3 +137,20 @@ synthesizes neural speech without audio hardware, checks the
 indicator, compiles Inno Setup, and tests install/uninstall before publishing
 an EXE, versioned documentation, dependency inventory and checksums. Installers
 are currently unsigned. The full app remains free under GPL-3.0-or-later.
+
+## Upgrades and startup recovery
+
+The frozen entry point is `launcher.py`, a small stdlib-only bootstrap that logs
+import/startup failures before loading Qt. Interactive launch failures show a
+Windows message; CLI failures return an error code. Logs rotate under
+`%LOCALAPPDATA%\GhostOS\startup.log`. A second desktop launch signals the
+existing UI through a per-user request file; it never starts a second agent.
+Valid old settings migrate, unknown fields are backed up and removed, and invalid
+settings recover to Strict mode with a backup and a visible notice.
+
+Inno keeps the established AppId and previous installation path. Restart Manager
+force-closes processes holding GhostOS files before replacement; previous runs
+are not automatically resumed. An explicit, unchecked repair task backs up and
+resets only settings. Release CI verifies upgrades from the published 1.2.2
+installer with a running headless process and checks actual GUI startup after
+normal and corrupted-setting upgrades. Models, recipes and logs are preserved.

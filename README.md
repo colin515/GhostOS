@@ -4,7 +4,7 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** version 1.2.2. Automated tests and Windows build, installation and
+**Status:** version 1.2.3. Automated tests and Windows build, installation and
 uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
 and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
@@ -12,9 +12,15 @@ and simple goals. No subscriptions, paid tiers or hosted inference service.
 ## Download and install
 
 1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
-2. Under **Assets**, download **GhostOS_Installer_v1.2.2.exe** and run it.
+2. Under **Assets**, download **GhostOS_Installer_v1.2.3.exe** and run it.
 3. Open GhostOS from the Start Menu. The first-run wizard guides you through
    installing Ollama and downloading a local vision model.
+
+Already installed? Run the new installer over the existing version; no uninstall
+is needed. It reuses the install folder and closes old background instances.
+Select **Reset settings to repair startup** only if needed; a backup is kept.
+Models, recipes and logs are preserved. Startup errors are recorded at
+`%LOCALAPPDATA%\GhostOS\startup.log`.
 
 The setup executable includes Python and application dependencies. You do not
 need to download the source ZIP or install Python. Windows 10/11 x64 is required.
@@ -173,11 +179,11 @@ always use observe → decide → authorize → execute → verify.
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe build_tools/build.py
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.2.2 build_tools/GhostOS_installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.2.3 build_tools/GhostOS_installer.iss
 ```
 
 A one-folder PyInstaller distribution contains `GhostOS.exe` and its runtime.
-Inno Setup wraps it as `GhostOS_Installer_v1.2.2.exe`, installs per user without
+Inno Setup wraps it as `GhostOS_Installer_v1.2.3.exe`, installs per user without
 admin rights, adds Start Menu shortcuts and provides an uninstaller. The app has
 an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
@@ -185,7 +191,7 @@ show a warning. This project does not promise otherwise.
 
 Update `VERSION` and push directly to `main`. The release workflow automatically
 builds and publishes that version, creating its matching tag at the exact build
-commit. Pushing a matching version tag (`v1.2.2`) or manually running **Windows
+commit. Pushing a matching version tag (`v1.2.3`) or manually running **Windows
 release** from `main` also works. Use a new version for every published release;
 published assets are not silently replaced.
 

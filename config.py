@@ -50,6 +50,7 @@ class Settings:
     tts_enabled: bool = False
     whisper_model: str = 'base'
     narrate_actions: bool = False
+    startup_notice: str = field(default='', repr=False, compare=False)
     settings_version: int = 2
     voice_approval: bool = False
     speech_engine: str = 'piper'
@@ -101,21 +102,69 @@ class Settings:
         path = root / 'settings.json'
         if not path.exists():
             return cls(data_dir=root)
-        raw = json.loads(path.read_text(encoding='utf-8'))
-        if raw.get('settings_version', 1) < 2:
-            if raw.get('max_steps') == 40:
-                raw['max_steps'] = 0
-            if raw.get('max_runtime') == 600:
-                raw['max_runtime'] = 0
-            raw['settings_version'] = 2
-        raw['data_dir'] = root
-        return cls(**raw)
+        try:
+            if path.stat().st_size > 1024 * 1024:
+                raise ValueError('Settings file exceeds 1 MB')
+            raw = json.loads(path.read_text(encoding='utf-8-sig'))
+            if not isinstance(raw, dict):
+                raise ValueError('Settings must be a JSON object')
+            from dataclasses import fields
+            defaults = cls(data_dir=root)
+            allowed = {f.name for f in fields(cls)} - {'data_dir', 'startup_notice'}
+            unknown = set(raw) - allowed
+            raw = {key: value for key, value in raw.items() if key in allowed}
+            for key, value in raw.items():
+                default = getattr(defaults, key)
+                if isinstance(default, bool):
+                    valid = type(value) is bool
+                elif isinstance(default, int):
+                    valid = type(value) is int
+                elif isinstance(default, float):
+                    valid = type(value) in (int, float)
+                else:
+                    valid = isinstance(value, type(default))
+                if not valid:
+                    raise ValueError(f'Invalid saved type for {key}')
+            if raw.get('settings_version', 1) < 2:
+                if raw.get('max_steps') == 40:
+                    raw['max_steps'] = 0
+                if raw.get('max_runtime') == 600:
+                    raw['max_runtime'] = 0
+                raw['settings_version'] = 2
+            candidate = cls(**raw, data_dir=root)
+        except (ValueError, TypeError, UnicodeError):
+            return cls.repair(root, 'Invalid saved settings prevented startup')
+        if unknown:
+            backup = cls.backup_settings(root)
+            candidate.startup_notice = f'Outdated settings fields were removed. Original saved as {backup.name}.'
+            candidate.save()
+        return candidate
+
+    @staticmethod
+    def backup_settings(root: Path) -> Path:
+        from datetime import datetime, timezone
+        import shutil
+        stamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')
+        backup = root / f'settings.backup_{stamp}.json'
+        shutil.copy2(root / 'settings.json', backup)
+        return backup
+
+    @classmethod
+    def repair(cls, data_dir: Path | None = None, reason='Settings reset requested') -> 'Settings':
+        root = Path(data_dir or user_data_dir())
+        root.mkdir(parents=True, exist_ok=True)
+        backup = cls.backup_settings(root) if (root / 'settings.json').exists() else None
+        candidate = cls(data_dir=root, tier=1)
+        candidate.startup_notice = reason + (f'. Original saved as {backup.name}.' if backup else '.')
+        candidate.save()
+        return candidate
 
     def save(self) -> None:
         self.__post_init__()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         payload = asdict(self)
         payload.pop('data_dir')
+        payload.pop('startup_notice')
         path = self.data_dir / 'settings.json'
         temporary = path.with_suffix('.tmp')
         temporary.write_text(json.dumps(payload, indent=2), encoding='utf-8')
