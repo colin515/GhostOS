@@ -1,0 +1,6 @@
+name: Open the Python documentation
+steps:
+  - kind: browser_navigate
+    args: {url: 'https://docs.python.org/3/'}
+  - kind: browser_snapshot
+    args: {}
