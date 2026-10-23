@@ -73,6 +73,8 @@ class Runtime:
         self._web = self._web_thread = None
         self._closing = False
         self.emergency_stopped = False
+        self.interactive_cli = True
+        self._cli_prompt_thread = None
         self._kill_switch = KillSwitch(self.stop)
         # Fresh per application launch, never placed in URLs/logs or embedded in the web page.
         self.token = secrets.token_urlsafe(32)
@@ -117,7 +119,11 @@ class Runtime:
                 args=(self.settings, goal, str(recipe) if recipe else None,
                       self._stop, self._events, self._answers), name='GhostOS-worker')
             self._process = process
-            process.start()
+            try:
+                process.start()
+            except Exception:
+                self._process = None
+                raise
             self.bus.publish('STARTED', goal=goal or f'Recipe: {Path(recipe).name}', run=stamp)
             self._monitor = threading.Thread(target=self._supervise, args=(process, log_dir), daemon=True)
             self._monitor.start()
@@ -129,7 +135,7 @@ class Runtime:
             while True:
                 if time.monotonic() - started > self.settings.max_runtime and not self._stop.is_set():
                     self._terminal_status = 'MAX_RUNTIME_EXCEEDED'
-                    self.stop(reason='Maximum run time reached')
+                    self.stop(reason='Maximum run time reached', status='MAX_RUNTIME_EXCEEDED')
                 try:
                     event = self._events.get(timeout=0.1)
                 except queue.Empty:
@@ -189,7 +195,7 @@ class Runtime:
             self.bus.publish('APPROVAL_RESOLVED', request_id=request_id, approved=bool(approved))
             return True
 
-    def stop(self, reason='Emergency stop'):
+    def stop(self, reason='Emergency stop', status='STOPPED'):
         # Set the brake first, then terminate only our worker/descendants. Never kill an external Ollama.
         with self._lock:
             self.emergency_stopped = True
@@ -197,6 +203,7 @@ class Runtime:
             if process is None:
                 return
             self._stop.set()
+            self._terminal_status = status
             self.approvals.clear()
         self.bus.publish('STOP', message=reason)
         if process.pid:
@@ -223,13 +230,23 @@ class Runtime:
         return cursor
 
     def _cli_approve(self):
+        import sys
         for request in self.approvals.pending():
-            if not __import__('sys').stdin.isatty():
+            if not self.interactive_cli or sys.stdin is None or not sys.stdin.isatty():
                 self.approve(request['id'], False)
                 continue
-            print(json.dumps(request['action'], indent=2))
-            answer = input('Approve this action? [y/N] ').lower() == 'y'
-            self.approve(request['id'], answer)
+            if self._cli_prompt_thread and self._cli_prompt_thread.is_alive():
+                return
+            def prompt(request=request):
+                print(json.dumps(request['action'], indent=2))
+                try:
+                    answer = input('Approve this action? [y/N] ').lower() == 'y'
+                except (EOFError, OSError):
+                    answer = False
+                self.approve(request['id'], answer)
+            # A pending console read must not block cancellation or timeout handling.
+            self._cli_prompt_thread = threading.Thread(target=prompt, daemon=True)
+            self._cli_prompt_thread.start()
 
     def run_cli(self, goal=None, recipe=None):
         self.start(goal, recipe)

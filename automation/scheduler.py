@@ -20,10 +20,10 @@ def task_xml(recipe, at, tier):
     load_recipe(recipe)
     if getattr(sys, 'frozen', False):
         executable = Path(sys.executable)
-        args = ['--recipe', str(recipe), '--tier', str(tier)]
+        args = ['--recipe', str(recipe), '--tier', str(tier), '--non-interactive']
     else:
         executable = Path(sys.executable)
-        args = [str(Path(__file__).resolve().parents[1] / 'main.py'), '--recipe', str(recipe), '--tier', str(tier)]
+        args = [str(Path(__file__).resolve().parents[1] / 'main.py'), '--recipe', str(recipe), '--tier', str(tier), '--non-interactive']
     arguments = subprocess.list2cmdline(args)
     import getpass
     username = os.environ.get('USERNAME', getpass.getuser())

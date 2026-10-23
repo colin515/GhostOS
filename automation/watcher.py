@@ -12,7 +12,7 @@ def watch(directory, recipe, runtime, debounce=1.0):
     if not directory.is_dir():
         raise ValueError('Watch target must be a directory')
     load_recipe(recipe)
-    if directory == runtime.settings.data_dir or directory in runtime.settings.data_dir.parents:
+    if directory == runtime.settings.data_dir or directory in runtime.settings.data_dir.parents or runtime.settings.data_dir in directory.parents:
         raise ValueError('Watch directory must not contain GhostOS application data/logs')
     changes = queue.Queue(maxsize=1)
     class Handler(FileSystemEventHandler):

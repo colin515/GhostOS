@@ -14,6 +14,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument('--version', action='version', version=VERSION)
     p.add_argument('--diagnostics', action='store_true')
     p.add_argument('--setup', action='store_true')
+    p.add_argument('--non-interactive', action='store_true', help='Deny actions needing human approval')
     p.add_argument('--desktop', action='store_true')
     p.add_argument('--web', action='store_true', help='Enable authenticated LAN dashboard')
     p.add_argument('--game', action='store_true')
@@ -53,6 +54,7 @@ def main(argv=None) -> int:
     from agent.runtime import Runtime, InstanceLock
     with InstanceLock(settings.data_dir):
         with Runtime(settings) as runtime:
+            runtime.interactive_cli = not args.non_interactive
             if args.web:
                 runtime.start_web()
                 print(f'Dashboard: http://{runtime.local_ip}:{settings.web_port} — pair in desktop settings or see {settings.data_dir / "dashboard-token.txt"}')

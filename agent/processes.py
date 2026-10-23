@@ -32,8 +32,9 @@ class ChildJob:
             info = win32job.QueryInformationJobObject(self.handle, win32job.JobObjectExtendedLimitInformation)
             info['BasicLimitInformation']['LimitFlags'] |= win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
             win32job.SetInformationJobObject(self.handle, win32job.JobObjectExtendedLimitInformation, info)
-            handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, process.pid)
+            handle = None
             try:
+                handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, process.pid)
                 win32job.AssignProcessToJobObject(self.handle, handle)
             except Exception:
                 # Fail closed: without ownership, do not let a command escape the stop control.
@@ -41,7 +42,8 @@ class ChildJob:
                 self.close()
                 raise
             finally:
-                handle.Close()
+                if handle:
+                    handle.Close()
 
     def close(self):
         if self.handle:

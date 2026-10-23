@@ -9,6 +9,7 @@ class SetupWizard(QDialog):
     def __init__(self, runtime, parent=None):
         super().__init__(parent)
         self.runtime, self.task = runtime, None
+        self.accept_after_task = False
         self.setWindowTitle('Welcome to GhostOS')
         self.resize(650, 630)
         layout = QVBoxLayout(self)
@@ -60,8 +61,13 @@ class SetupWizard(QDialog):
         self.task.progress.connect(self.note.setText)
         self.task.result.connect(callback)
         self.task.error.connect(self.note.setText)
-        self.task.finished.connect(lambda: self.busy(False))
+        self.task.finished.connect(self.task_finished)
         self.task.start()
+
+    def task_finished(self):
+        self.busy(False)
+        if self.accept_after_task:
+            self.accept()
 
     def inspect(self):
         def work(progress):
@@ -101,7 +107,7 @@ class SetupWizard(QDialog):
             self.runtime.settings.setup_complete = True
             self.runtime.settings.save()
             # Wait until QThread has actually returned before closing the dialog.
-            self.task.finished.connect(self.accept)
+            self.accept_after_task = True
         self.launch_task(work, complete)
 
     def reject(self):

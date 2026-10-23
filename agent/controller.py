@@ -113,9 +113,10 @@ class Controller:
             self.process = subprocess.Popen(command, cwd=self.settings.data_dir,
                                             stdout=out, stderr=subprocess.STDOUT,
                                             creationflags=subprocess.CREATE_NO_WINDOW)
-            job = ChildJob(self.process)
+            job = None
             deadline = time.monotonic() + timeout
             try:
+                job = ChildJob(self.process)
                 while self.process.poll() is None:
                     self.safety.check()
                     if time.monotonic() >= deadline:
@@ -128,7 +129,8 @@ class Controller:
                 return content or 'PowerShell completed (no output)'
             finally:
                 kill_tree(self.process.pid)
-                job.close()
+                if job:
+                    job.close()
                 self.process = None
 
     def close(self):
