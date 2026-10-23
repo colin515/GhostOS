@@ -79,3 +79,14 @@ def test_native_stop_prevents_any_keyboard_input(native):
     with pytest.raises(InterruptedError):
         browser.open('https://www.netflix.com/')
     assert not calls
+
+
+
+def test_tab_inventory_survives_a_missing_selection_pattern(monkeypatch):
+    tab = SimpleNamespace(ControlTypeName='TabItemControl',Name='Netflix',
+        GetSelectionItemPattern=lambda:(_ for _ in ()).throw(RuntimeError('unsupported pattern')))
+    root = SimpleNamespace(ControlTypeName='PaneControl',GetChildren=lambda:[tab])
+    monkeypatch.setitem(sys.modules,'uiautomation',SimpleNamespace(GetForegroundControl=lambda:root))
+    browser = NativeBrowser(SimpleNamespace(browser_channel='chrome'),threading.Event(),lambda text:None)
+    tabs, _ = browser.chrome()
+    assert len(tabs) == 1 and tabs[0][1] == 'Netflix'

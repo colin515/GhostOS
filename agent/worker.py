@@ -127,7 +127,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                             safety.check()
                         continue
                     if decision.status == 'GOAL_IMPOSSIBLE':
-                        emit('MODEL_VERDICT_REJECTED', status=decision.status, message=decision.summary)
+                        emit('MODEL_VERDICT_REJECTED', verdict=decision.status, message=decision.summary)
                         emit('RECOVERY', message='The current screen is not a reason to stop. Checking another navigation strategy.')
                         if not recovery.exhausted:
                             recovery.attempt(controller, emit, 'Checking focus and launch while keeping the goal active')

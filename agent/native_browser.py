@@ -33,7 +33,10 @@ class NativeBrowser:
                 if kind == 'DocumentControl':
                     return  # excludes all web content, including forms
                 if kind == 'TabItemControl':
-                    selected = control.GetSelectionItemPattern().IsSelected
+                    try:
+                        selected = control.GetSelectionItemPattern().IsSelected
+                    except Exception:
+                        selected = False
                     tabs.append((control, control.Name, selected))
                     return
                 if kind == 'EditControl':
@@ -79,7 +82,14 @@ class NativeBrowser:
                 if selected or time.monotonic() >= until_reuse:
                     continue
                 try:
-                    control.GetSelectionItemPattern().Select()
+                    try:
+                        control.GetSelectionItemPattern().Select()
+                    except Exception:
+                        # Some Chromium builds expose tabs without SelectionItem.
+                        # A real smooth click on the UIA tab centre is a safe navigation fallback.
+                        from agent.mouse import MouseDriver
+                        rect = control.BoundingRectangle
+                        MouseDriver(self.stop).click((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)
                     until = min(until_reuse, time.monotonic() + 0.5)
                     while time.monotonic() < until:
                         self.check()
