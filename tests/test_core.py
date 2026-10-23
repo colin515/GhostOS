@@ -103,3 +103,14 @@ def test_sendinput_has_native_union_size():
     import ctypes
     from agent.gaming_engine import INPUT
     assert ctypes.sizeof(INPUT) == (40 if ctypes.sizeof(ctypes.c_void_p) == 8 else 28)
+
+
+def test_cloud_alias_and_nonvision_models_are_refused():
+    from agent.brain import ensure_local_vision
+    with pytest.raises(ValueError, match='Cloud/remote'):
+        ensure_local_vision({'remote_host': 'https://ollama.com', 'capabilities': ['vision']})
+    with pytest.raises(ValueError, match='vision'):
+        ensure_local_vision({'capabilities': ['completion']})
+    with pytest.raises(ValueError, match='Cloud model'):
+        Settings(model='custom:cloud')
+    ensure_local_vision({'capabilities': ['completion', 'vision']})

@@ -5,7 +5,7 @@
 The initial validation runs on Linux/Python 3.12 with Windows APIs isolated in
 tests. This does not certify the Windows desktop or game drivers.
 
-- 54 automated tests passed; the native Win32 INPUT structure-size test is skipped
+- 55 automated tests passed; the native Win32 INPUT structure-size test is skipped
   outside Windows. Tests cover permission tiers, rejection of untrusted action
   fields, decline/timeout/cancellation, one-time approvals, action/recipe schemas,
   exact step-budget completion, observe/execute/terminal states, DPI coordinate

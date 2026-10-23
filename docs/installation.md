@@ -28,6 +28,14 @@ will trust a newly published binary. Bundled binaries do not require Python.
    an Ollama model. Its CTranslate2 Whisper weights download from Hugging Face.
 6. Save after the selected vision tag appears in the local model inventory.
 
+GhostOS rejects cloud-tagged models and inspects local model metadata before
+sending any goal or screenshot. A remote alias or a model without vision support
+is refused. Ollama HTTP clients ignore proxy environment variables for loopback
+requests. For an additional server-wide local-only setting, set
+`OLLAMA_NO_CLOUD=1` in Ollama's own environment and restart Ollama; see the
+[official Ollama FAQ](https://docs.ollama.com/faq#how-do-i-disable-ollamas-cloud-features).
+GhostOS does not change the settings of a separately running Ollama server.
+
 The default small-context budget is 8,192 tokens with one latest screenshot.
 32B weights are about 21 GB. A 16 GB GPU needs offload for that model, and games
 also need VRAM; use the smaller model if latency or memory pressure is high.

@@ -14,6 +14,13 @@ Do not repeat submissions, shell scripts or deletion actions after uncertain out
 In game mode avoid UIA and use short bounded input bursts; camera control uses relative deltas.
 ''' + ACTION_HELP
 
+def ensure_local_vision(metadata):
+    if metadata.get('remote_host') or metadata.get('remote_model'):
+        raise ValueError('Cloud/remote Ollama models are disabled. Select a downloaded local vision model.')
+    if 'vision' not in (metadata.get('capabilities') or []):
+        raise ValueError('The selected model does not advertise vision support. Update Ollama or select a vision model.')
+
+
 class Context:
     def __init__(self, limit=6, max_chars=6500):
         self.limit, self.max_chars = limit, max_chars
@@ -36,7 +43,8 @@ class Brain:
     def __init__(self, settings):
         import ollama
         self.settings = settings
-        self.client = ollama.Client(host=settings.ollama_host, timeout=90)
+        self.client = ollama.Client(host=settings.ollama_host, timeout=90, trust_env=False)
+        ensure_local_vision(self.client.show(settings.model).model_dump())
         self.context = Context()
 
     @staticmethod

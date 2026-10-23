@@ -57,7 +57,7 @@ def hardware_report():
 def ollama_status(host='http://127.0.0.1:11434'):
     import ollama
     try:
-        client = ollama.Client(host=host, timeout=5)
+        client = ollama.Client(host=host, timeout=5, trust_env=False)
         names = [item.model for item in client.list().models]
         loaded = [{'model': model.model, 'vram_bytes': model.size_vram} for model in client.ps().models]
         return {'reachable': True, 'installed_models': names, 'loaded_models': loaded}

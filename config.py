@@ -66,6 +66,8 @@ class Settings:
             raise ValueError('Invalid polling intervals')
         if not self.model.strip():
             raise ValueError('Choose a model')
+        if self.model.lower().endswith('cloud'):
+            raise ValueError('Cloud model tags are disabled; choose a downloaded local vision model')
         from urllib.parse import urlparse
         for address in (self.ollama_host, self.cdp_url):
             if address and urlparse(address).hostname not in ('localhost', '127.0.0.1', '::1'):

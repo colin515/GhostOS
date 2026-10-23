@@ -9,7 +9,9 @@ MODELS = ['qwen2.5vl:7b', 'qwen2.5vl:32b', 'llama3.2-vision:11b', 'llava:7b', 'q
 
 def download_model(settings, model, progress=print):
     import ollama
-    client = ollama.Client(host=settings.ollama_host, timeout=120)
+    if model.lower().endswith('cloud'):
+        raise ValueError('Choose a local model; cloud model tags are disabled')
+    client = ollama.Client(host=settings.ollama_host, timeout=120, trust_env=False)
     for part in client.pull(model, stream=True):
         percent = f' {100 * part.completed / part.total:.0f}%' if part.total and part.completed else ''
         progress((part.status or 'Downloading') + percent)
