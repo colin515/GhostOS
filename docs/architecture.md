@@ -5,7 +5,9 @@ sets Per-Monitor-V2 DPI awareness before importing capture/Qt libraries. One
 per-user file lock prevents separate instances from controlling the same PC.
 The non-elevated parent owns a bounded event bus, approval broker, optional
 FastAPI server and global stop listener. A spawned worker owns automation,
-Playwright and Ollama requests. The GUI never waits on inference or a command.
+Playwright and Ollama requests. The GUI never waits on inference or a command. A separate read-only capture thread
+keeps the desktop/LAN screenshot feed live during model inference and approval
+waits; it stops with the run.
 
 ## Decision and execution boundary
 

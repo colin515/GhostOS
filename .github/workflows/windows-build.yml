@@ -23,12 +23,12 @@ jobs:
           & dist/GhostOS/GhostOS.exe --diagnostics
           if ($LASTEXITCODE -ne 0) { throw 'Frozen resource/import check failed' }
       - name: Install Inno Setup
-        run: choco install innosetup --version=6.4.3 --yes --no-progress
+        run: ./build_tools/ensure_inno.ps1
       - name: Compile and test installer
         shell: pwsh
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" build_tools/GhostOS_installer.iss
+          & $env:GHOSTOS_ISCC "/DAppVersion=$version" build_tools/GhostOS_installer.iss
           if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
           $target = Join-Path $env:RUNNER_TEMP 'GhostOSSmoke'
           $installer = (Get-Item "dist/GhostOS_Installer_v$version.exe").FullName

@@ -71,6 +71,7 @@ class Runtime:
         self._stop = self._events = self._answers = None
         self._terminal_status = None
         self._web = self._web_thread = None
+        self._capture_cancel = None
         self._closing = False
         self.emergency_stopped = False
         self.interactive_cli = True
@@ -125,9 +126,29 @@ class Runtime:
                 self._process = None
                 raise
             self.bus.publish('STARTED', goal=goal or f'Recipe: {Path(recipe).name}', run=stamp)
+            self._capture_cancel = threading.Event()
+            capture = threading.Thread(target=self._capture_live, args=(self._capture_cancel, log_dir), daemon=True)
+            capture.start()
             self._monitor = threading.Thread(target=self._supervise, args=(process, log_dir), daemon=True)
             self._monitor.start()
         return stamp
+
+    def _capture_live(self, cancel, log_dir):
+        # Capture independently of Ollama/approval waits so the LAN feed stays live.
+        from agent.vision import Vision
+        vision = Vision(self.settings.screenshot_width)
+        while not cancel.is_set():
+            try:
+                frame = vision.capture()
+                if cancel.is_set():
+                    return
+                event = self.bus.publish('FRAME', image=frame.base64(grid=not self.settings.game_mode))
+                if self.settings.persist_screenshots:
+                    (log_dir / f"live_{event['id']:06d}.jpg").write_bytes(frame.jpeg())
+            except Exception:
+                # Worker still reports capture errors; do not flood logs if the desktop locks.
+                pass
+            cancel.wait(self.settings.screenshot_interval)
 
     def _supervise(self, process, log_dir):
         started = time.monotonic()
@@ -169,6 +190,8 @@ class Runtime:
                 self._terminal_status = 'STOPPED' if self._stop.is_set() else 'WORKER_CRASHED'
                 self.bus.publish('STATUS', status=self._terminal_status)
             self.approvals.clear()
+            if self._capture_cancel:
+                self._capture_cancel.set()
             terminal_status = self._terminal_status
             with self._lock:
                 self._process = None
@@ -203,6 +226,8 @@ class Runtime:
             if process is None:
                 return
             self._stop.set()
+            if self._capture_cancel:
+                self._capture_cancel.set()
             self._terminal_status = status
             self.approvals.clear()
         self.bus.publish('STOP', message=reason)
