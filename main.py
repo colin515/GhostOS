@@ -13,6 +13,7 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description='GhostOS — local Windows OS agent')
     p.add_argument('--version', action='version', version=VERSION)
     p.add_argument('--diagnostics', action='store_true')
+    p.add_argument('--browser-smoke-test', action='store_true', help='Check CDP on a disposable browser profile and local form')
     p.add_argument('--input-smoke-test', action='store_true', help='Move/click inside a disposable native test window')
     p.add_argument('--voice-smoke-test', action='store_true')
     p.add_argument('--setup', action='store_true')
@@ -45,6 +46,9 @@ def main(argv=None) -> int:
         print('GhostOS requires Windows 10/11 x64.', file=sys.stderr)
         return 2
     enable_dpi_awareness()  # Before Qt, UIA or screenshot imports.
+    if args.browser_smoke_test:
+        from agent.browser_probe import run_probe
+        return run_probe()
     if args.input_smoke_test:
         from ui.input_probe import run_probe
         return run_probe()

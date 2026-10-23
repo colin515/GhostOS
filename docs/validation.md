@@ -5,6 +5,8 @@ also installs all Windows dependencies, freezes the app, checks frozen imports,
 creates/closes the screen indicator, synthesizes bundled neural speech without an
 audio device, and exercises actual native mouse input in a disposable Windows
 window. The cursor and previous foreground window are restored after that probe.
+A disposable Edge profile also exercises CDP navigation, a local form fill and
+click, disconnect/reconnect and preservation of the completed result tab.
 Inno Setup compilation and a real silent install/uninstall must succeed before
 GitHub publishes the downloadable installer.
 

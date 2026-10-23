@@ -132,7 +132,8 @@ PyInstaller bundles the custom multi-resolution ICO and voice resources. The
 window, taskbar, Start Menu shortcut and Inno wizard share GhostOS identity.
 An asInvoker/Per-Monitor-V2 manifest preserves privilege and coordinate behavior.
 The main-push/tag workflow tests, freezes, exercises native mouse input in a
-disposable window, synthesizes neural speech without audio hardware, checks the
+disposable window, exercises a local browser form and persistent CDP tabs,
+synthesizes neural speech without audio hardware, checks the
 indicator, compiles Inno Setup, and tests install/uninstall before publishing
 an EXE, versioned documentation, dependency inventory and checksums. Installers
 are currently unsigned. The full app remains free under GPL-3.0-or-later.
