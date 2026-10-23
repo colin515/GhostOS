@@ -8,7 +8,10 @@ only. Internet is used to install packages and download models; subsequent model
 inference, screenshots and speech transcription stay local. Browser tasks use
 the network addresses requested by the user.
 
-Use the source setup in README, or install the GitHub Release executable. The
+Download **GhostOS_Installer_v1.0.0.exe** from the
+[latest GitHub Release](https://github.com/colin515/GhostOS/releases/latest), run
+it, and open GhostOS from the Start Menu. Choose the `.exe` under **Assets**;
+the source ZIP is for developers. No Python installation is needed. The
 installer is per-user and requests no elevation. It does not silently install
 Ollama, GPU drivers, voice models, scheduled tasks, firewall rules or certificates.
 It is unsigned. Verify the release SHA256SUMS file; do not assume SmartScreen
@@ -71,8 +74,12 @@ deletes unrelated directories or installed applications.
 
 ## Release process
 
-Set `VERSION` to a three-component version, commit it, and push a matching tag.
-`.github/workflows/release.yml` rejects mismatches. The installer version, binary
+Set `VERSION` to a new three-component version, commit it, and push to `main`.
+The workflow creates the matching tag and publishes the installer automatically.
+A matching tag push or a manual **Windows release** workflow run from `main`
+is also supported. Tag/version mismatches and runs from other branches fail.
+Published releases are immutable in this workflow; use a new version rather
+than replacing an existing release. The installer version, binary
 version resource, documentation archive name and release name share that value.
 The attached ZIP contains the docs from the exact tagged commit. Source remains
 available in GitHub's automatic source archives. CI also captures the exact

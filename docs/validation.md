@@ -16,12 +16,15 @@ tests. This does not certify the Windows desktop or game drivers.
   This checks layout/construction; it does not verify Windows focus or accessibility.
 - The source CLI returns the version and reads its packaged resource paths.
 
-The initial core CI run passed on Windows and Linux. The pull request runs core tests on Windows/Linux and a separate Windows packaging
-workflow. The packaging job installs full dependencies, freezes the application,
+The version 1.0.0 core CI passed on Windows and Linux, and Windows package
+validation passed for commit `db9273353d0110d8e53e425a94e2d5196f8197d8`
+([run 39988840202](https://github.com/colin515/GhostOS/actions/runs/39988840202)).
+Changes pushed to main run core tests; release builds run the complete Windows
+packaging and installation checks again. The packaging job installs full dependencies, freezes the application,
 compiles Inno Setup, silently installs, checks the installed resources/imports,
 uninstalls and uploads a preview installer artifact. A queued or failed workflow
-is not a passing build. Tagged releases run their own packaging/validation before
-publication.
+is not a passing build. Automatic main-branch version releases and tagged releases run their own
+packaging/validation before publication.
 
 ## Manual Windows acceptance before promoting a release
 

@@ -1,28 +1,41 @@
 name: Windows release
 on:
   push:
+    branches: [main]
     tags: ['v*.*.*']
+    paths:
+      - VERSION
+      - .github/workflows/release.yml
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: windows-release
   cancel-in-progress: false
 jobs:
   build:
     runs-on: windows-2022
     timeout-minutes: 60
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: pip
-      - name: Check tag matches VERSION
+      - name: Read release version
+        id: version
         shell: pwsh
         run: |
           $version = (Get-Content VERSION -Raw).Trim()
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid VERSION' }
-          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag does not match VERSION' }
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag does not match VERSION' }
+          } elseif ($env:GITHUB_REF -ne 'refs/heads/main') {
+            throw 'Releases must run from main or a matching version tag'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
           "APP_VERSION=$version" >> $env:GITHUB_ENV
       - name: Install dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
@@ -84,6 +97,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: v${{ needs.build.outputs.version }}
+          TARGET_SHA: ${{ github.sha }}
         run: |
-          gh release create "$TAG" release/* --verify-tag --title "GhostOS $TAG" --generate-notes --notes "Versioned documentation is attached as a ZIP and available at https://github.com/$GH_REPO/tree/$TAG/docs . Installer is unsigned; see installation.md."
+          gh release create "$TAG" release/* --target "$TARGET_SHA" --title "GhostOS $TAG" --generate-notes --notes "Install GhostOS by downloading and running GhostOS_Installer_$TAG.exe. Python is bundled; install Ollama separately when prompted on first launch. Versioned documentation is attached as a ZIP and available at https://github.com/$GH_REPO/tree/$TAG/docs . Installer is unsigned; see installation.md."

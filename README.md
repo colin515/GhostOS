@@ -4,12 +4,24 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** initial implementation. Core logic has automated tests; Windows UI,
-hardware acceleration, game compatibility and the complete installer require
-validation on Windows. A local vision model can make mistakes. Start with Tier 1
+**Status:** version 1.0.0. Automated tests and Windows build, installation and
+uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
+and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
 
-## Start on Windows
+## Download and install
+
+1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
+2. Under **Assets**, download **GhostOS_Installer_v1.0.0.exe** and run it.
+3. Open GhostOS from the Start Menu. The first-run wizard guides you through
+   installing Ollama and downloading a local vision model.
+
+The setup executable includes Python and application dependencies. You do not
+need to download the source ZIP or install Python. Windows 10/11 x64 is required.
+The installer is unsigned, so Windows may display an unknown-publisher warning.
+See [installation instructions](docs/installation.md) for verification and setup.
+
+## Run from source on Windows
 
 Install [Python 3.11 x64](https://www.python.org/downloads/windows/) and
 [Ollama for Windows](https://ollama.com/download/windows). Start Ollama normally.
@@ -120,11 +132,16 @@ an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
 show a warning. This project does not promise otherwise.
 
-Update `VERSION`, commit, and push a matching version tag (`v1.0.0`). The release
-workflow tests on Windows, freezes the application, compiles and smoke-tests the
-installer, publishes the installer plus versioned documentation ZIP, exact build
-dependency inventory and SHA-256 checksums. No release is made until a tag is
-pushed. Versioned docs also live at `/tree/<tag>/docs` on GitHub.
+Update `VERSION` and push directly to `main`. The release workflow automatically
+builds and publishes that version, creating its matching tag at the exact build
+commit. Pushing a matching version tag (`v1.0.0`) or manually running **Windows
+release** from `main` also works. Use a new version for every published release;
+published assets are not silently replaced.
+
+The workflow tests on Windows, freezes the application, compiles and smoke-tests
+the installer, and publishes the setup executable, versioned documentation ZIP,
+exact build dependency inventory and SHA-256 checksums. A successful installer
+build is required for publication. Versioned docs also live at `/tree/<tag>/docs`.
 
 ## Project layout
 
