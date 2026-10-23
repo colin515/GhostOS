@@ -45,6 +45,8 @@ jobs:
         run: python -m pytest -q
       - name: Verify maintained voice distribution metadata
         run: python -c "from importlib.metadata import version; print('webrtcvad-wheels', version('webrtcvad-wheels'))"
+      - name: Verify local Windows-Use SDK imports and native UIA
+        run: python -c "from agent.windows_use_engine import local_desktop; from ghostos_vendor.windows_use.uia import GetRootControl; desktop = local_desktop(); assert GetRootControl(); print('Windows-Use native UIA ready')"
       - name: Freeze application
         run: python build_tools/build.py
       - name: Check frozen application imports, native input and neural speech

@@ -21,6 +21,7 @@ def main():
     if not re.fullmatch(r'\d+\.\d+\.\d+', version):
         raise SystemExit('VERSION must contain major.minor.patch')
     os.chdir(ROOT)
+    sys.path.insert(0, str(ROOT))  # Direct script execution otherwise exposes build_tools only.
     build = ROOT / 'build'
     build.mkdir(exist_ok=True)
     version_tuple = ', '.join(version.split('.') + ['0'])
