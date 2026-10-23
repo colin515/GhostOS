@@ -114,3 +114,18 @@ def test_cloud_alias_and_nonvision_models_are_refused():
     with pytest.raises(ValueError, match='Cloud model'):
         Settings(model='custom:cloud')
     ensure_local_vision({'capabilities': ['completion', 'vision']})
+
+
+def test_raw_model_metadata_keeps_remote_host(monkeypatch):
+    import io
+    import urllib.request
+    from agent.brain import local_model_metadata, ensure_local_vision
+    class FakeOpener:
+        def open(self, request, timeout):
+            assert request.full_url == 'http://127.0.0.1:11434/api/show'
+            assert json.loads(request.data) == {'model': 'local-alias:latest'}
+            return io.BytesIO(json.dumps({'remote_host':'https://ollama.com','capabilities':['vision']}).encode())
+    monkeypatch.setattr(urllib.request, 'build_opener', lambda *args: FakeOpener())
+    metadata = local_model_metadata('http://127.0.0.1:11434', 'local-alias:latest')
+    with pytest.raises(ValueError, match='Cloud/remote'):
+        ensure_local_vision(metadata)

@@ -14,6 +14,16 @@ Do not repeat submissions, shell scripts or deletion actions after uncertain out
 In game mode avoid UIA and use short bounded input bursts; camera control uses relative deltas.
 ''' + ACTION_HELP
 
+def local_model_metadata(host, model):
+    # Read the raw public API response: SDK response models can drop remote_host.
+    from urllib.request import Request, ProxyHandler, build_opener
+    request = Request(host.rstrip('/') + '/api/show', data=json.dumps({'model': model}).encode('utf-8'),
+                      headers={'Content-Type': 'application/json'}, method='POST')
+    opener = build_opener(ProxyHandler({}))
+    with opener.open(request, timeout=10) as response:
+        return json.load(response)
+
+
 def ensure_local_vision(metadata):
     if metadata.get('remote_host') or metadata.get('remote_model'):
         raise ValueError('Cloud/remote Ollama models are disabled. Select a downloaded local vision model.')
@@ -41,10 +51,11 @@ class Context:
 
 class Brain:
     def __init__(self, settings):
+        metadata = local_model_metadata(settings.ollama_host, settings.model)
+        ensure_local_vision(metadata)
         import ollama
         self.settings = settings
         self.client = ollama.Client(host=settings.ollama_host, timeout=90, trust_env=False)
-        ensure_local_vision(self.client.show(settings.model).model_dump())
         self.context = Context()
 
     @staticmethod
