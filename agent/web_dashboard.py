@@ -84,7 +84,7 @@ def create_app(runtime):
     async def approve(request_id: str, payload: ApprovalRequest, request: Request,
                       authorization: str | None = Header(default=None)):
         await authenticate(request, authorization)
-        if not runtime.approve(request_id, payload.approved):
+        if not await run_in_threadpool(runtime.approve, request_id, payload.approved):
             raise HTTPException(409, 'Approval no longer pending')
         return {'resolved': True}
 

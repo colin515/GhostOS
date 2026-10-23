@@ -1,6 +1,6 @@
 """Primary monitor capture with explicit physical/model coordinate transforms."""
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import base64
 import io
 from PIL import Image, ImageDraw, ImageGrab
@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageGrab
 class Frame:
     image: Image.Image
     original_size: tuple[int, int]
+    _jpeg_cache: dict = field(default_factory=dict, repr=False)
 
     def physical(self, x, y):
         w, h = self.image.size
@@ -17,6 +18,8 @@ class Frame:
         return round(x * self.original_size[0] / w), round(y * self.original_size[1] / h)
 
     def jpeg(self, grid=False):
+        if grid in self._jpeg_cache:
+            return self._jpeg_cache[grid]
         image = self.image.copy()
         if grid:
             draw = ImageDraw.Draw(image)
@@ -28,7 +31,8 @@ class Frame:
                 draw.text((2, y + 2), str(y), fill='white')
         buffer = io.BytesIO()
         image.save(buffer, format='JPEG', quality=75)
-        return buffer.getvalue()
+        self._jpeg_cache[grid] = buffer.getvalue()
+        return self._jpeg_cache[grid]
 
     def base64(self, grid=False):
         return base64.b64encode(self.jpeg(grid)).decode('ascii')

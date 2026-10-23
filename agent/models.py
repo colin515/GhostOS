@@ -30,6 +30,9 @@ class Delay(Args):
 class App(Args):
     name: str = Field(min_length=1, max_length=80)
 
+class EnsureApp(App):
+    strategy: Literal['focus', 'launch', 'search'] = 'focus'
+
 class Element(Args):
     element_id: int = Field(ge=0, le=200)
 
@@ -63,7 +66,7 @@ class Template(Args):
 
 ARG_TYPES = {
     'hotkey': Keys, 'type_text': Text, 'click': Click, 'shell': Shell, 'wait': Delay,
-    'open_app': App, 'ui_click': Element, 'browser_navigate': URL,
+    'open_app': App, 'ensure_app': EnsureApp, 'ui_click': Element, 'browser_navigate': URL,
     'browser_click': Locator, 'browser_fill': Fill, 'browser_snapshot': Empty,
     'game_move': Move, 'game_key': GameKey, 'game_click': Empty,
     'template_click': Template, 'focus': Empty,
@@ -71,7 +74,7 @@ ARG_TYPES = {
 ActionKind = Literal[
     'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click',
     'browser_navigate', 'browser_click', 'browser_fill', 'browser_snapshot',
-    'game_move', 'game_key', 'game_click', 'template_click', 'focus',
+    'game_move', 'game_key', 'game_click', 'template_click', 'focus', 'ensure_app',
 ]
 
 class Action(BaseModel):
@@ -104,5 +107,7 @@ browser_click {selector:"role=button[name=Submit]"}; browser_fill {selector:"inp
 browser_snapshot {}; game_move {dx:50,dy:0}; game_key {key:"w",duration:0.2};
 game_click {}; template_click {name:"target.png",threshold:0.85}.
 Coordinates are pixels in the latest resized screenshot. UIA IDs only apply to current tree.
-Use keyboard navigation and open_app before mouse clicks. No arbitrary Python execution.
+ensure_app {name:"chrome",strategy:"focus"|"launch"|"search"} focuses/maximizes a running app,
+launches an installed app, or uses Windows Search. Apps: chrome, edge, firefox, notepad, calculator, explorer, paint.
+Use keyboard navigation and ensure_app before mouse clicks. No arbitrary Python execution.
 '''

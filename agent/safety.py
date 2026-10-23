@@ -17,6 +17,8 @@ def requires_approval(action: Action, tier: int) -> bool:
         return True
     if tier == 3:
         return False
+    if action.kind == 'ensure_app':
+        return action.args['strategy'] == 'search'
     if action.kind in ('wait', 'focus', 'browser_navigate', 'browser_snapshot', 'game_move'):
         return False
     if action.kind == 'hotkey':

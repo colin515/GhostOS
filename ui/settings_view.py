@@ -1,58 +1,155 @@
-from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QComboBox, QLineEdit,
-                            QCheckBox, QPushButton, QLabel, QMessageBox, QSpinBox)
+"""Quick-access AI, voice and performance controls; voice discovery runs off-thread."""
+from PyQt6.QtWidgets import (QDialog, QWidget, QScrollArea, QVBoxLayout, QFormLayout, QComboBox,
+                            QLineEdit, QCheckBox, QPushButton, QLabel, QMessageBox, QSpinBox, QDoubleSpinBox)
+from ui.tasks import Task
 
 class SettingsView(QDialog):
     def __init__(self, runtime, parent=None):
         super().__init__(parent)
         self.runtime = runtime
-        self.setWindowTitle('Agent settings')
-        self.resize(600, 560)
-        layout, form = QVBoxLayout(self), QFormLayout()
+        self.voice_task = None
+        self.deferred_result = None
+        self.setWindowTitle('GhostOS · AI settings')
+        self.resize(650, 740)
+        layout = QVBoxLayout(self)
+        heading = QLabel('Make GhostOS yours')
+        heading.setObjectName('hero')
+        layout.addWidget(heading)
+        body = QWidget()
+        body_layout, form = QVBoxLayout(body), QFormLayout()
+        form.setVerticalSpacing(13)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(body)
+        layout.addWidget(scroll)
         self.tier = QComboBox()
-        self.tier.addItems(['Tier 1 · Confirm every action', 'Tier 2 · Confirm consequential or ambiguous input',
-                            'Tier 3 · Auto-approve actions; Windows UAC remains manual'])
+        self.tier.addItems(['Tier 1 · Confirm every action', 'Tier 2 · Confirm consequential input',
+                            'Tier 3 · Auto-approve; UAC remains manual'])
         self.tier.setCurrentIndex(runtime.settings.tier - 1)
         form.addRow('Permissions', self.tier)
         self.model = QLineEdit(runtime.settings.model)
-        form.addRow('Ollama model', self.model)
+        form.addRow('Local vision model', self.model)
+        self.browser = QComboBox()
+        self.browser.addItems(['msedge', 'chrome'])
+        self.browser.setCurrentText(runtime.settings.browser_channel)
+        form.addRow('Browser', self.browser)
         self.cdp = QLineEdit(runtime.settings.cdp_url)
         self.cdp.setPlaceholderText('Optional: http://127.0.0.1:9222')
         form.addRow('Browser CDP', self.cdp)
-        self.game = QCheckBox('Use relative game input and template polling')
+        self.game = QCheckBox('Relative input and template polling')
         self.game.setChecked(runtime.settings.game_mode)
         form.addRow('Game mode', self.game)
-        self.voice = QCheckBox('Enable microphone (download model via setup)')
+        self.voice = QCheckBox('Microphone commands · pause to send')
         self.voice.setChecked(runtime.settings.voice_enabled)
-        form.addRow('Voice', self.voice)
-        self.tts = QCheckBox('Speak terminal status')
+        form.addRow('Voice input', self.voice)
+        self.narrate = QCheckBox('Speak each action while working')
+        self.narrate.setChecked(runtime.settings.narrate_actions)
+        form.addRow('Narration', self.narrate)
+        self.tts = QCheckBox('Speak the final task status')
         self.tts.setChecked(runtime.settings.tts_enabled)
-        form.addRow('Speech', self.tts)
+        form.addRow('Completion audio', self.tts)
+        self.speech_voice = QComboBox()
+        self.speech_voice.addItem('Calm default · Zira when installed', '')
+        if runtime.settings.speech_voice:
+            self.speech_voice.addItem('Saved Windows voice', runtime.settings.speech_voice)
+            self.speech_voice.setCurrentIndex(1)
+        form.addRow('Voice', self.speech_voice)
+        voices = QPushButton('Load installed Windows voices')
+        voices.clicked.connect(self.load_voices)
+        form.addRow('', voices)
+        self.rate = QSpinBox()
+        self.rate.setRange(120, 220)
+        self.rate.setValue(runtime.settings.speech_rate)
+        form.addRow('Speaking rate', self.rate)
+        preview = QPushButton('Preview selected voice')
+        preview.clicked.connect(self.preview_voice)
+        form.addRow('', preview)
+        self.silence = QDoubleSpinBox()
+        self.silence.setRange(0.4, 2.5)
+        self.silence.setSingleStep(0.1)
+        self.silence.setValue(runtime.settings.vad_silence)
+        self.silence.setSuffix(' seconds')
+        form.addRow('Pause before sending', self.silence)
+        self.width = QSpinBox()
+        self.width.setRange(640, 1920)
+        self.width.setSingleStep(128)
+        self.width.setValue(runtime.settings.screenshot_width)
+        form.addRow('Vision image width', self.width)
+        self.output = QSpinBox()
+        self.output.setRange(256, 2048)
+        self.output.setSingleStep(128)
+        self.output.setValue(runtime.settings.prediction_tokens)
+        form.addRow('Output token budget', self.output)
         self.steps = QSpinBox()
         self.steps.setRange(1, 1000)
         self.steps.setValue(runtime.settings.max_steps)
-        form.addRow('Step limit', self.steps)
-        layout.addLayout(form)
-        label = QLabel('Pairing grants control of this PC. Use a trusted private network.\nHTTP does not encrypt local traffic. Keep Windows Firewall on the Private profile.')
+        form.addRow('Task step limit', self.steps)
+        body_layout.addLayout(form)
+        note = QLabel('Smaller images and shorter output reduce inference work.\nVoice quality depends on the Windows voices installed on this PC.\nStop the active task before changing model or control settings.')
+        note.setWordWrap(True)
+        body_layout.addWidget(note)
+        label = QLabel(f'Phone dashboard · http://{runtime.local_ip}:{runtime.settings.web_port}\nPairing grants PC control. Use a trusted private network; HTTP is not encrypted.')
         label.setWordWrap(True)
-        layout.addWidget(label)
+        body_layout.addWidget(label)
         token = QLineEdit(runtime.token)
         token.setReadOnly(True)
         token.setEchoMode(QLineEdit.EchoMode.Password)
-        layout.addWidget(token)
+        body_layout.addWidget(token)
         show = QCheckBox('Show pairing token')
         show.toggled.connect(lambda checked: token.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password))
-        layout.addWidget(show)
-        web = QPushButton(f'Start dashboard · http://{runtime.local_ip}:{runtime.settings.web_port}')
+        body_layout.addWidget(show)
+        web = QPushButton('Start phone dashboard')
         web.clicked.connect(runtime.start_web)
-        layout.addWidget(web)
-        setup = QPushButton('Open model and voice setup')
+        body_layout.addWidget(web)
+        setup = QPushButton('Model and voice setup')
         setup.clicked.connect(self.open_setup)
-        layout.addWidget(setup)
+        setup.setEnabled(not runtime.running)
+        body_layout.addWidget(setup)
+        body_layout.addStretch()
+        self.note = QLabel('')
+        layout.addWidget(self.note)
         save = QPushButton('Save settings')
+        save.setObjectName('send')
         save.clicked.connect(self.save)
         save.setEnabled(not runtime.running)
-        setup.setEnabled(not runtime.running)
         layout.addWidget(save)
+
+    def preview_voice(self):
+        from dataclasses import replace
+        candidate = replace(self.runtime.settings, speech_voice=self.speech_voice.currentData(), speech_rate=self.rate.value())
+        self.runtime.speech.say("Hello. I'm GhostOS. Ready when you are.", priority=True, settings=candidate)
+
+    def load_voices(self):
+        if self.voice_task and self.voice_task.isRunning():
+            return
+        from agent.voice import list_voices
+        self.note.setText('Loading local Windows voices…')
+        self.voice_task = Task(lambda progress: list_voices(), self)
+        self.voice_task.result.connect(self.voices_loaded)
+        self.voice_task.error.connect(self.note.setText)
+        self.voice_task.finished.connect(self.voice_task_finished)
+        self.voice_task.start()
+
+    def voices_loaded(self, voices):
+        current = self.speech_voice.currentData()
+        self.speech_voice.clear()
+        self.speech_voice.addItem('Calm default · Zira when installed', '')
+        for voice in voices:
+            self.speech_voice.addItem(voice['name'], voice['id'])
+        index = self.speech_voice.findData(current)
+        self.speech_voice.setCurrentIndex(max(0, index))
+        self.note.setText('Choose a voice and a comfortable speaking rate.')
+
+    def done(self, result):
+        if self.voice_task and self.voice_task.isRunning():
+            self.deferred_result = result
+            self.note.setText('Finishing voice discovery…')
+            return
+        super().done(result)
+
+    def voice_task_finished(self):
+        if self.deferred_result is not None:
+            super().done(self.deferred_result)
 
     def open_setup(self):
         from ui.setup_wizard import SetupWizard
@@ -62,17 +159,21 @@ class SettingsView(QDialog):
 
     def save(self):
         if self.runtime.running:
-            QMessageBox.warning(self, 'Agent running', 'Stop the run before changing settings.')
+            self.note.setText('Stop the active task before changing AI settings.')
             return
         from dataclasses import replace
         try:
             candidate = replace(self.runtime.settings, tier=self.tier.currentIndex() + 1,
                                 model=self.model.text().strip(), cdp_url=self.cdp.text().strip(),
+                                browser_channel=self.browser.currentText(),
                                 game_mode=self.game.isChecked(), voice_enabled=self.voice.isChecked(),
-                                tts_enabled=self.tts.isChecked(), max_steps=self.steps.value())
+                                narrate_actions=self.narrate.isChecked(), tts_enabled=self.tts.isChecked(),
+                                speech_voice=self.speech_voice.currentData(), speech_rate=self.rate.value(),
+                                vad_silence=self.silence.value(), screenshot_width=self.width.value(),
+                                prediction_tokens=self.output.value(), max_steps=self.steps.value())
             candidate.save()
             self.runtime.settings = candidate
-        except ValueError as exc:
-            QMessageBox.warning(self, 'Invalid settings', str(exc))
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, 'Could not save settings', str(exc))
             return
         self.accept()

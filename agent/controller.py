@@ -19,7 +19,11 @@ class Controller:
     def execute(self, action: Action):
         self.safety.authorize(action)
         self.safety.check()  # Stop may have arrived at the approval boundary.
+        self.safety.events.put({'kind': 'EXECUTING', 'action': action.model_dump()}, timeout=0.2)
         kind, a = action.kind, action.args
+        if kind == 'ensure_app':
+            from agent.windows_apps import WindowsApps
+            return WindowsApps(self.safety.stop).ensure(a['name'], a['strategy'], self.type_unicode)
         if kind.startswith('browser_'):
             return self.web.execute(action)
         if kind == 'shell':
@@ -83,7 +87,8 @@ class Controller:
             shortcuts = json.loads((RESOURCE_DIR / 'shortcuts.json').read_text(encoding='utf-8'))
             target = shortcuts.get(a['name'].lower())
             if target is None:
-                raise ValueError('Unknown application shortcut')
+                from agent.windows_apps import WindowsApps
+                return WindowsApps(self.safety.stop).ensure(a['name'], 'launch', self.type_unicode)
             # Fixed packaged executable paths/arguments; never interpolate goal text.
             subprocess.Popen([os.path.expandvars(part) for part in target])
         else:

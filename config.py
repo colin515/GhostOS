@@ -42,13 +42,22 @@ class Settings:
     max_steps: int = 40
     max_runtime: int = 600
     approval_timeout: int = 120
-    screenshot_width: int = 1280
+    screenshot_width: int = 1024
     screenshot_interval: float = 0.75
     persist_screenshots: bool = False
     setup_complete: bool = False
     voice_enabled: bool = False
     tts_enabled: bool = False
     whisper_model: str = 'base'
+    narrate_actions: bool = False
+    speech_voice: str = ''
+    speech_rate: int = 160
+    speech_volume: float = 0.85
+    vad_silence: float = 0.9
+    voice_max_seconds: int = 45
+    context_tokens: int = 8192
+    prediction_tokens: int = 512
+    browser_channel: str = 'msedge'
     cdp_url: str = ''
     data_dir: Path = field(default_factory=user_data_dir)
 
@@ -64,6 +73,14 @@ class Settings:
             raise ValueError('Invalid runtime/approval time limit')
         if not (0.1 <= self.screenshot_interval <= 10 and 0.1 <= self.vision_interval <= 30):
             raise ValueError('Invalid polling intervals')
+        if not (120 <= self.speech_rate <= 220 and 0 <= self.speech_volume <= 1):
+            raise ValueError('Invalid speech rate/volume')
+        if not (0.4 <= self.vad_silence <= 2.5 and 5 <= self.voice_max_seconds <= 120):
+            raise ValueError('Invalid voice recording limits')
+        if not (4096 <= self.context_tokens <= 32768 and 256 <= self.prediction_tokens <= 2048):
+            raise ValueError('Invalid inference budget')
+        if self.browser_channel not in ('msedge', 'chrome'):
+            raise ValueError('Browser channel must be msedge or chrome')
         if not self.model.strip():
             raise ValueError('Choose a model')
         if self.model.lower().endswith('cloud'):

@@ -43,7 +43,7 @@ StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('T
         command += ['--collect-all', module]
     for module in ('pynput.keyboard._win32', 'pynput.mouse._win32', 'pyttsx3.drivers.sapi5',
                    'win32timezone', 'pythoncom', 'pywintypes', 'win32com.client',
-                   'win32job', 'win32gui', 'win32api', 'sounddevice'):
+                   'win32job', 'win32gui', 'win32api', 'sounddevice', 'webrtcvad', '_webrtcvad'):
         command += ['--hidden-import', module]
     command += ['--exclude-module', 'PySide6', '--exclude-module', 'PyQt5', 'main.py']
     subprocess.run(command, check=True)

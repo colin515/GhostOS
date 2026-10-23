@@ -46,8 +46,13 @@ class InstanceLock:
 def local_ip():
     # No public network probe. Use the IPv4 interfaces reported by the OS.
     import psutil
-    for name, addrs in psutil.net_if_addrs().items():
-        stats = psutil.net_if_stats().get(name)
+    try:
+        addresses = psutil.net_if_addrs()
+        statistics = psutil.net_if_stats()
+    except (OSError, psutil.Error):
+        return '127.0.0.1'
+    for name, addrs in addresses.items():
+        stats = statistics.get(name)
         if not stats or not stats.isup:
             continue
         for address in addrs:
@@ -67,6 +72,11 @@ class Runtime:
         self.context = mp.get_context('spawn')
         self._lock = threading.RLock()
         self._process = self._monitor = None
+        self._starting = False
+        self._launch_thread = None
+        self._launch_cancel = threading.Event()
+        self._indicator = None
+        self.preview_enabled = False
         self._manager = None
         self._stop = self._events = self._answers = None
         self._terminal_status = None
@@ -84,60 +94,94 @@ class Runtime:
         if os.name != 'nt':
             token_file.chmod(0o600)
         self.local_ip = local_ip()
+        from agent.voice import SpeechService
+        self.speech = SpeechService(lambda: self.settings, lambda message: self.bus.publish('ERROR', message=message))
 
     @property
     def running(self):
-        with self._lock:
-            return self._process is not None
+        # A read must not block Qt while multiprocessing starts in a background thread.
+        return getattr(self, '_starting', False) or self._process is not None
 
     def __enter__(self):
         self._kill_switch.start()
         return self
 
     def start(self, goal=None, recipe=None):
-        if self._closing:
-            raise RuntimeError('Application is closing')
         if not goal and not recipe:
             raise ValueError('Provide a goal or recipe')
-        if goal and (not isinstance(goal, str) or len(goal) > 16000):
-            raise ValueError('Goal is too long')
+        if goal and (not isinstance(goal, str) or len(goal) > 16000 or not goal.strip()):
+            raise ValueError('Provide a nonempty goal of at most 16,000 characters')
         with self._lock:
-            if self._process is not None:
+            if self._closing:
+                raise RuntimeError('Application is closing')
+            if self.running:
                 raise RuntimeError('An agent run is already active')
+            self._starting = True
+            self._launch_cancel = threading.Event()
             stamp = datetime.now(timezone.utc).strftime('run_%Y%m%d_%H%M%S_%f')
-            log_dir = self.settings.data_dir / 'logs' / stamp
-            log_dir.mkdir()
             self._terminal_status = None
             self.emergency_stopped = False
             self.approvals.clear()
-            self._stop = self.context.Event()
+            self.speech.cancel()
+            self.bus.publish('STARTED', goal=goal or f'Recipe: {Path(recipe).name}', run=stamp)
+            self._launch_thread = threading.Thread(target=self._launch,
+                args=(goal, recipe, stamp, self._launch_cancel), daemon=True, name='GhostOS-launch')
+            self._launch_thread.start()
+        return stamp
+
+    def _launch(self, goal, recipe, stamp, cancelled):
+        process = indicator = None
+        try:
+            log_dir = self.settings.data_dir / 'logs' / stamp
+            log_dir.mkdir()
+            (log_dir / 'events.jsonl').write_text(json.dumps({'kind': 'STARTED', 'goal': goal or f'Recipe: {Path(recipe).name}', 'run': stamp}, ensure_ascii=False) + '\n', encoding='utf-8')
             if self._manager is None:
                 self._manager = self.context.Manager()
-            # Manager queues remain intact when a worker is terminated mid-frame.
+            if cancelled.is_set():
+                raise InterruptedError('Stopped before worker startup')
+            # Includes CLI and remote-only runs, even while the main desktop is minimized.
+            from ui.activity_border import ActivityIndicator
+            indicator = ActivityIndicator(self.context)
+            self._indicator = indicator
+            indicator.start()
+            if cancelled.is_set():
+                raise InterruptedError('Stopped before worker startup')
+            self._stop = self.context.Event()
             self._events = self._manager.Queue(maxsize=100)
             self._answers = self._manager.Queue(maxsize=20)
             process = self.context.Process(target=run_worker,
                 args=(self.settings, goal, str(recipe) if recipe else None,
                       self._stop, self._events, self._answers), name='GhostOS-worker')
             self._process = process
-            try:
-                process.start()
-            except Exception:
-                self._process = None
-                raise
-            self.bus.publish('STARTED', goal=goal or f'Recipe: {Path(recipe).name}', run=stamp)
+            process.start()
+            if cancelled.is_set():
+                self.stop(reason='Stopped during startup')
             self._capture_cancel = threading.Event()
-            capture = threading.Thread(target=self._capture_live, args=(self._capture_cancel, log_dir), daemon=True)
-            capture.start()
-            self._monitor = threading.Thread(target=self._supervise, args=(process, log_dir), daemon=True)
+            threading.Thread(target=self._capture_live, args=(self._capture_cancel, log_dir), daemon=True).start()
+            self._starting = False
+            self._monitor = threading.Thread(target=self._supervise,
+                args=(process, log_dir, indicator), daemon=True)
             self._monitor.start()
-        return stamp
+        except Exception as exc:
+            if process and process.pid:
+                from agent.processes import kill_tree
+                kill_tree(process.pid)
+            if indicator:
+                indicator.close()
+            self._process = None
+            self._terminal_status = 'STOPPED' if cancelled.is_set() or isinstance(exc, InterruptedError) else 'ERROR'
+            self._starting = False
+            self.bus.publish('STATUS', status=self._terminal_status, message=str(exc))
+            self.bus.publish('FINISHED', status=self._terminal_status)
 
     def _capture_live(self, cancel, log_dir):
         # Capture independently of Ollama/approval waits so the LAN feed stays live.
         from agent.vision import Vision
         vision = Vision(self.settings.screenshot_width)
         while not cancel.is_set():
+            if not self._web and not self.preview_enabled:
+                cancel.wait(self.settings.screenshot_interval)
+                continue
             try:
                 frame = vision.capture()
                 if cancel.is_set():
@@ -150,38 +194,47 @@ class Runtime:
                 pass
             cancel.wait(self.settings.screenshot_interval)
 
-    def _supervise(self, process, log_dir):
+    def _supervise(self, process, log_dir, indicator=None):
         started = time.monotonic()
-        with (log_dir / 'events.jsonl').open('a', encoding='utf-8', buffering=1) as log:
-            while True:
-                if time.monotonic() - started > self.settings.max_runtime and not self._stop.is_set():
-                    self._terminal_status = 'MAX_RUNTIME_EXCEEDED'
-                    self.stop(reason='Maximum run time reached', status='MAX_RUNTIME_EXCEEDED')
-                try:
-                    event = self._events.get(timeout=0.1)
-                except queue.Empty:
-                    if not process.is_alive():
+        try:
+            with (log_dir / 'events.jsonl').open('a', encoding='utf-8', buffering=1) as log:
+                while True:
+                    if indicator and not indicator.process.is_alive() and not self._stop.is_set():
+                        self.stop(reason='Activity indicator stopped unexpectedly', status='INDICATOR_ERROR')
+                    if time.monotonic() - started > self.settings.max_runtime and not self._stop.is_set():
+                        self.stop(reason='Maximum run time reached', status='MAX_RUNTIME_EXCEEDED')
+                    try:
+                        event = self._events.get(timeout=0.1)
+                    except queue.Empty:
+                        if not process.is_alive():
+                            break
+                        continue
+                    kind = event.pop('kind')
+                    if kind == 'WORKER_DONE':
                         break
-                    continue
-                kind = event.pop('kind')
-                if kind == 'WORKER_DONE':
-                    # Worker closes queues/driver before process exit. Join is bounded below.
-                    break
-                if kind == 'APPROVAL':
-                    self.approvals.create(event['request_id'], event['action'], event.get('target_window'))
-                    log.write(json.dumps(dict(kind=kind, **event), ensure_ascii=False) + '\n')
-                else:
-                    if kind == 'APPROVAL_EXPIRED':
-                        self.approvals.resolve(event['request_id'])
-                    if kind == 'STATUS':
-                        self._terminal_status = event.get('status')
-                    published = self.bus.publish(kind, **event)
-                    if kind != 'FRAME':
-                        log.write(json.dumps(published, ensure_ascii=False) + '\n')
-                    elif self.settings.persist_screenshots:
-                        import base64
-                        (log_dir / f"frame_{published['id']:06d}.jpg").write_bytes(base64.b64decode(event['image']))
-            process.join(timeout=2)
+                    if kind == 'APPROVAL':
+                        self.approvals.create(event['request_id'], event['action'], event.get('target_window'))
+                        log.write(json.dumps(dict(kind=kind, **event), ensure_ascii=False) + '\n')
+                    else:
+                        if kind == 'APPROVAL_EXPIRED':
+                            self.approvals.resolve(event['request_id'])
+                        if kind == 'EXECUTING' and self.settings.narrate_actions:
+                            from agent.voice import action_narration
+                            self.speech.say(action_narration(event['action']))
+                        if kind == 'STATUS' and not self._stop.is_set():
+                            self._terminal_status = event.get('status')
+                        published = self.bus.publish(kind, **event)
+                        if kind != 'FRAME':
+                            log.write(json.dumps(published, ensure_ascii=False) + '\n')
+                        elif self.settings.persist_screenshots:
+                            import base64
+                            (log_dir / f"frame_{published['id']:06d}.jpg").write_bytes(base64.b64decode(event['image']))
+                process.join(timeout=2)
+        except Exception as exc:
+            self._terminal_status = 'ERROR'
+            self._stop.set()
+            self.bus.publish('ERROR', message=f'Worker supervision failed: {type(exc).__name__}: {exc}')
+        finally:
             if process.is_alive():
                 from agent.processes import kill_tree
                 kill_tree(process.pid)
@@ -189,13 +242,20 @@ class Runtime:
             if not self._terminal_status:
                 self._terminal_status = 'STOPPED' if self._stop.is_set() else 'WORKER_CRASHED'
                 self.bus.publish('STATUS', status=self._terminal_status)
+            if self._stop.is_set() or self._terminal_status in ('ERROR', 'WORKER_CRASHED'):
+                from agent.gaming_engine import release_inputs
+                release_inputs()
             self.approvals.clear()
             if self._capture_cancel:
                 self._capture_cancel.set()
+            if indicator:
+                indicator.close()
             terminal_status = self._terminal_status
+            if self.settings.tts_enabled and terminal_status != 'STOPPED':
+                self.speech.say(terminal_status.replace('_', ' ').capitalize() + '.')
             with self._lock:
                 self._process = None
-            self.bus.publish('FINISHED', status=terminal_status, logs=str(log_dir))
+                self.bus.publish('FINISHED', status=terminal_status, logs=str(log_dir))
 
     def approve(self, request_id, approved):
         with self._lock:
@@ -219,17 +279,23 @@ class Runtime:
             return True
 
     def stop(self, reason='Emergency stop', status='STOPPED'):
-        # Set the brake first, then terminate only our worker/descendants. Never kill an external Ollama.
         with self._lock:
             self.emergency_stopped = True
             process = self._process
-            if process is None:
-                return
-            self._stop.set()
+            if getattr(self, '_launch_cancel', None):
+                self._launch_cancel.set()
+            if self._stop is not None:
+                self._stop.set()  # Brake before hiding the indicator or stopping child processes.
             if self._capture_cancel:
                 self._capture_cancel.set()
             self._terminal_status = status
             self.approvals.clear()
+        if getattr(self, '_indicator', None):
+            self._indicator.request_stop()
+        if getattr(self, 'speech', None):
+            self.speech.cancel()
+        if process is None:
+            return
         self.bus.publish('STOP', message=reason)
         if process.pid:
             from agent.processes import kill_tree
@@ -304,9 +370,14 @@ class Runtime:
     def __exit__(self, *_):
         self._closing = True
         self.stop(reason='Application closing')
+        if self._launch_thread:
+            self._launch_thread.join(timeout=6)
         if self._monitor:
             self._monitor.join(timeout=4)
         self._kill_switch.close()
+        self.speech.close()
+        if self._indicator:
+            self._indicator.close()
         if self._web:
             self._web.should_exit = True
         if self._web_thread:

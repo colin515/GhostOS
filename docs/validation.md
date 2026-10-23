@@ -1,11 +1,11 @@
-# Validation and release readiness · GhostOS 1.0.1
+# Validation and release readiness · GhostOS 1.1.0
 
 ## Verified in the development environment
 
 The initial validation runs on Linux/Python 3.12 with Windows APIs isolated in
 tests. This does not certify the Windows desktop or game drivers.
 
-- 62 automated tests passed; the native Win32 INPUT structure-size test is skipped
+- 89 automated tests passed; the native Win32 INPUT structure-size test is skipped
   outside Windows. Tests cover permission tiers, rejection of untrusted action
   fields, decline/timeout/cancellation, one-time approvals, action/recipe schemas,
   exact step-budget completion, observe/execute/terminal states, DPI coordinate
@@ -49,6 +49,34 @@ Use an ordinary, unlocked desktop session with no valuable documents open.
 
 These checks need real Windows 10/11, representative GPUs and the intended games.
 A GUI screenshot, mocked controller or CI smoke check cannot prove them.
+
+## Version 1.1.0 validation
+
+Regression tests cover first-impossible recovery, bounded fallback exhaustion,
+Chrome preflight, model transport retries, permission denial during recovery,
+foreground verification, avoiding duplicate app launches, VAD endpointing and
+recording bounds, speech cancellation, narration privacy, nonblocking startup,
+startup cancellation, supervisor logging failure, indicator startup failure,
+spawned indicator lifecycle and automatic/cancelled voice submission. The desktop
+was rendered offscreen and visually inspected. These are not recordings of an
+actual Galaxus browser workflow or real microphone/SAPI acceptance tests.
+
+The Windows release workflow now starts and closes the frozen indicator in
+addition to import/resource and install/uninstall checks. Native acceptance must
+still verify transparent input and overlay visibility at different DPI scales.
+
+| Additional Windows acceptance | Expected result |
+| --- | --- |
+| Chrome already in background | Existing window is restored, focused and maximized |
+| Chrome installed, closed | Registry/standard path launch, then a fresh observation |
+| Chrome missing | Search/navigation fallbacks logged; no silent installation |
+| First impossible model verdict | Recovery runs; task continues when possible |
+| Say a command, then pause | Recording ends, transcript submits once, acknowledgment speaks |
+| Cancel during transcription | No task starts from the cancelled transcript |
+| Voice selection/preview | Selected installed voice and rate are audible |
+| Narration + Stop | Authorized actions are narrated; queued/current speech stops |
+| Desktop/CLI/mobile task | Yellow border appears and clicks pass through it |
+| Worker or indicator crash | Task ends; border and held inputs are cleaned up |
 
 ## Version 1.0.1 changes
 

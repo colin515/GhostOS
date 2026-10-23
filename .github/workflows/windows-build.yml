@@ -22,6 +22,8 @@ jobs:
         run: |
           & dist/GhostOS/GhostOS.exe --diagnostics
           if ($LASTEXITCODE -ne 0) { throw 'Frozen resource/import check failed' }
+          & dist/GhostOS/GhostOS.exe --indicator-smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen indicator check failed' }
       - name: Install Inno Setup
         run: ./build_tools/ensure_inno.ps1
       - name: Compile and test installer

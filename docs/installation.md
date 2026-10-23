@@ -1,4 +1,4 @@
-# Installation · GhostOS 1.0.1
+# Installation · GhostOS 1.1.0
 
 ## Prerequisites
 
@@ -92,3 +92,18 @@ available in GitHub's automatic source archives. CI also captures the exact
 resolved package versions so the build environment can be inspected. Ranged
 requirements are not a complete reproducible lockfile; independently review
 dependency updates before a public release.
+
+## Quick AI and voice controls in 1.1
+
+Open the gear immediately beside **Send**. Enable voice after downloading its
+model, then click **Speak**. Pause to submit automatically; click again to cancel.
+Choose a Windows voice, preview it, and adjust speaking speed or pause duration.
+**Narrate actions** can also be toggled directly below the composer during a run.
+
+Model, image width and output budget changes apply to the next task. Older
+settings files keep their saved capture width; new installations default to
+1024px. If JSON output is repeatedly truncated, increase the output token budget.
+A model's context window, GPU offload and inference speed still depend on hardware.
+
+Run `GhostOS.exe --indicator-smoke-test` to verify that the packaged activity
+border can start and close without moving the mouse, typing or calling Ollama.

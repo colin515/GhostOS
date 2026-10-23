@@ -95,3 +95,15 @@ def test_terminal_decisions_cannot_sneak_in_action():
         Decision(status='GOAL_SATISFIED', summary='done', action=Action(kind='focus'))
     with pytest.raises(ValidationError):
         Decision(status='CONTINUE', summary='continue')
+
+
+def test_executing_event_is_emitted_only_after_authorization(tmp_path):
+    from agent.controller import Controller
+    safety = make_safety(tier=3)
+    controller = Controller(SimpleNamespace(), safety, None, None)
+    controller.execute(Action(kind='wait', args={'seconds':0.0}))
+    assert safety.events.get_nowait()['kind'] == 'EXECUTING'
+    safety.stop.set()
+    with pytest.raises(InterruptedError):
+        controller.execute(Action(kind='wait', args={'seconds':0.0}))
+    assert safety.events.empty()

@@ -4,7 +4,7 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** version 1.0.1. Automated tests and Windows build, installation and
+**Status:** version 1.1.0. Automated tests and Windows build, installation and
 uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
 and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
@@ -12,7 +12,7 @@ and simple goals. No subscriptions, paid tiers or hosted inference service.
 ## Download and install
 
 1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
-2. Under **Assets**, download **GhostOS_Installer_v1.0.1.exe** and run it.
+2. Under **Assets**, download **GhostOS_Installer_v1.1.0.exe** and run it.
 3. Open GhostOS from the Start Menu. The first-run wizard guides you through
    installing Ollama and downloading a local vision model.
 
@@ -67,7 +67,8 @@ control so it does not obscure its own target; restore it to inspect the live
 trajectory. Brief progress assessments, plans, screenshots and action results
 appear in the sidebar. Approval dialogs display the exact action and arguments.
 
-In Settings, choose a permission tier and start the dashboard. On a phone on the
+Click the **gear beside Send** to choose a model, permission tier, browser, voice
+and performance settings. In Settings, start the dashboard. On a phone on the
 same trusted Wi-Fi, open the displayed `http://<PC-IP>:8000`, then enter the pairing
 token from Settings. You can submit goals, approve actions and stop a run. Only
 one goal runs at a time. The server is opt-in, binds `0.0.0.0:8000`, requires a
@@ -80,7 +81,29 @@ per-launch token, checks origins/hosts, and rejects non-private clients.
 .\.venv\Scripts\python.exe main.py --game --desktop
 ```
 
-**Ctrl + Alt + K**, **Ctrl + Alt + Esc**, the desktop Stop button and the mobile
+A glowing yellow, click-through border appears around every connected screen
+while an agent task is active, including tasks started from the phone or CLI.
+The main window can minimize without hiding the indicator. Native exclusive
+fullscreen games and secure desktops can suppress normal Windows overlays.
+
+### Voice commands and narration
+
+Enable voice and download the Whisper model through **AI settings → Model and
+voice setup**. Click **Speak**, say your command, and pause. WebRTC VAD ends the
+recording automatically after 0.9 seconds of silence; GhostOS transcribes locally,
+says **“On it”**, and submits the goal immediately under your selected permission
+tier. Clicking the microphone again or pressing Stop cancels the command. Empty
+recordings and recordings reaching their duration limit never submit a task.
+
+The waveform reacts to actual microphone levels. Whisper is cached after its
+first use. **Narrate actions** toggles speech during execution; completion audio
+has a separate setting. Choose and preview a local Windows voice in AI settings.
+The calm default prefers Zira when installed, at 160 words/minute. Voice quality
+and languages depend on installed SAPI voices; there is no cloud speech service.
+The narration queue is bounded and coalesces during fast workflows so speech does
+not delay control or continue reading a long backlog after Stop.
+
+**Ctrl + Alt + K**,  **Ctrl + Alt + Esc**, the desktop Stop button and the mobile
 Stop button cancel the worker and release held keyboard/mouse inputs. Only owned
 worker processes/children are terminated; an independently running Ollama remains
 available. Already-completed side effects are not rolled back. Windows UAC and
@@ -98,6 +121,27 @@ Balanced intentionally confirms ambiguous clicks: a normal click can submit a
 form or delete a file. Permissions are derived from validated actions, never an
 LLM-provided risk label. Approval timeout/decline stops the run. Scheduled runs
 without an interactive approval channel deny actions needing confirmation.
+
+## Autonomous recovery and performance
+
+An unfocused browser is recoverable. For explicit app goals, GhostOS first locates
+and focuses/maximizes the existing window, then checks Windows App Paths and
+standard installation directories before launching an installed app. Further
+fallbacks include Windows Search, Alt+Tab, keyboard navigation and a fresh model
+assessment. Each fallback runs at most once, with normal permission checks.
+Chrome goals use Chrome when installed, including the Playwright channel.
+
+The first model `GOAL_IMPOSSIBLE` verdict cannot terminate a task with unused
+recovery steps. Recovery is bounded by the task's step/time limits, and never
+replays uncertain submissions, deletions or scripts. Model/API errors are retried
+three times and reported as `MODEL_ERROR`, separately from an impossible goal.
+
+Worker startup, JPEG preview decoding, speech and recognition stay off the UI
+thread. Logs are batched, previews replace older frames, JPEGs are cached per
+observation, and hidden previews skip extra capture work. New settings use 1024px
+vision images and a 512-token response budget; existing image-width settings are
+preserved. Raise image width/output budget for small text or complex forms.
+GPU/model speed remains hardware-dependent.
 
 ## Recipes, scheduling and triggers
 
@@ -125,11 +169,11 @@ always use observe → decide → authorize → execute → verify.
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe build_tools/build.py
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.1 build_tools/GhostOS_installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.1.0 build_tools/GhostOS_installer.iss
 ```
 
 A one-folder PyInstaller distribution contains `GhostOS.exe` and its runtime.
-Inno Setup wraps it as `GhostOS_Installer_v1.0.1.exe`, installs per user without
+Inno Setup wraps it as `GhostOS_Installer_v1.1.0.exe`, installs per user without
 admin rights, adds Start Menu shortcuts and provides an uninstaller. The app has
 an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
@@ -137,7 +181,7 @@ show a warning. This project does not promise otherwise.
 
 Update `VERSION` and push directly to `main`. The release workflow automatically
 builds and publishes that version, creating its matching tag at the exact build
-commit. Pushing a matching version tag (`v1.0.1`) or manually running **Windows
+commit. Pushing a matching version tag (`v1.1.0`) or manually running **Windows
 release** from `main` also works. Use a new version for every published release;
 published assets are not silently replaced.
 
@@ -184,6 +228,6 @@ credentials, tokens, browser profiles or private screenshots. Contributions must
 remain compatible with **GPL-3.0-or-later**, selected to accommodate PyQt6's GPL
 licensing. No CLA, payment or hosted account is required.
 
-See [installation](docs/installation.md), [game mode](docs/gaming_mode.md),
+See [the 1.1 architecture changes](docs/upgrade_1_1.md), [installation](docs/installation.md), [game mode](docs/gaming_mode.md),
 [dashboard](docs/web_dashboard.md), [architecture](docs/architecture.md) and
 [validation limits](docs/validation.md).

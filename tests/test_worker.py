@@ -96,9 +96,51 @@ def test_stopped_loop_dispatches_nothing(harness):
     assert any(e.get('status') == 'STOPPED' for e in events)
 
 
-def test_declared_impossible_dispatches_nothing(harness):
+def test_first_impossible_verdict_recovers_and_reobserves(harness):
     _, actions, decisions, run = harness
-    decisions.append(Decision(status='GOAL_IMPOSSIBLE', summary='blocked'))
+    decisions.extend([Decision(status='GOAL_IMPOSSIBLE', summary='browser is unfocused'),
+                      Decision(status='GOAL_SATISFIED', summary='browser is now available')])
+    events = run()
+    assert actions[0].kind == 'hotkey'
+    assert actions[0].args['keys'] == ['alt', 'tab']
+    assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
+    assert not any(e.get('status') == 'GOAL_IMPOSSIBLE' for e in events)
+
+
+def test_impossible_requires_exhausted_recovery_and_fresh_verdict(harness):
+    settings, actions, decisions, run = harness
+    settings.max_steps = 8
+    decisions.extend([Decision(status='GOAL_IMPOSSIBLE', summary='blocked') for _ in range(4)])
+    events = run()
+    terminal = next(e for e in events if e.get('status') == 'GOAL_IMPOSSIBLE')
+    assert len(terminal['recovery_attempts']) == 3
+    assert [a.kind for a in actions] == ['hotkey', 'focus', 'hotkey', 'wait']
+
+
+def test_explicit_chrome_goal_focuses_app_before_inference(harness):
+    _, actions, decisions, run = harness
+    decisions.append(Decision(status='GOAL_SATISFIED', summary='ready'))
+    events = run('Open galaxus.ch in Google Chrome')
+    assert actions[0].kind == 'ensure_app'
+    assert actions[0].args == {'name':'chrome', 'strategy':'focus'}
+    assert any(e.get('status') == 'GOAL_SATISFIED' for e in events)
+
+
+def test_model_transport_errors_are_retried_and_not_called_impossible(harness):
+    _, actions, _, run = harness
     events = run()
     assert not actions
-    assert any(e.get('status') == 'GOAL_IMPOSSIBLE' for e in events)
+    assert any(e.get('status') == 'MODEL_ERROR' for e in events)
+    assert not any(e.get('status') == 'GOAL_IMPOSSIBLE' for e in events)
+
+
+def test_recovery_respects_declined_approval(harness, monkeypatch):
+    import agent.controller
+    _, actions, decisions, run = harness
+    decisions.append(Decision(status='GOAL_IMPOSSIBLE', summary='unfocused'))
+    def decline(self, action):
+        raise PermissionError('User declined recovery')
+    monkeypatch.setattr(agent.controller.Controller, 'execute', decline)
+    events = run()
+    assert not actions
+    assert any(e.get('status') == 'PERMISSION_DENIED' for e in events)

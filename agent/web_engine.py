@@ -23,7 +23,7 @@ class WebEngine:
         else:
             # Microsoft Edge is provided by Windows; no bundled Chromium download required.
             self.context = self.playwright.chromium.launch_persistent_context(
-                str(self.settings.data_dir / 'browser-profile'), channel='msedge', headless=False,
+                str(self.settings.data_dir / ('browser-profile-' + self.settings.browser_channel)), channel=self.settings.browser_channel, headless=False,
                 viewport=None, accept_downloads=False, timeout=15000)
             self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
         self.page.set_default_timeout(8000)
@@ -35,7 +35,7 @@ class WebEngine:
         text = self.page.locator('body').inner_text(timeout=5000)[:5000]
         controls = self.page.locator('input,button,select,textarea,a').evaluate_all('''els => els.slice(0,80).map(e => ({
             tag:e.tagName, type:e.type || '', name:e.name || '', id:e.id || '',
-            label:e.getAttribute('aria-label') || e.innerText.slice(0,80)}))''')
+            label:e.getAttribute('aria-label') || (e.innerText || '').slice(0,80)}))''')
         import json
         return json.dumps({'url': self.page.url, 'text': text, 'controls': controls})[:7000]
 

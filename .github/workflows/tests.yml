@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install pytest httpx fastapi pillow psutil pydantic pyyaml numpy opencv-python-headless ruff
+      - run: python -m pip install pytest PyQt6 webrtcvad-wheels httpx fastapi pillow psutil pydantic pyyaml numpy opencv-python-headless ruff
       - run: python -m compileall -q agent automation ui config.py main.py setup.py build_tools
       - run: python -m ruff check .
       - run: python -m pytest -q

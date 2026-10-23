@@ -14,6 +14,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument('--version', action='version', version=VERSION)
     p.add_argument('--diagnostics', action='store_true')
     p.add_argument('--setup', action='store_true')
+    p.add_argument('--indicator-smoke-test', action='store_true', help='Check the activity indicator lifecycle without computer input')
     p.add_argument('--non-interactive', action='store_true', help='Deny actions needing human approval')
     p.add_argument('--desktop', action='store_true')
     p.add_argument('--web', action='store_true', help='Enable authenticated LAN dashboard')
@@ -38,6 +39,14 @@ def main(argv=None) -> int:
         print('GhostOS requires Windows 10/11 x64.', file=sys.stderr)
         return 2
     enable_dpi_awareness()  # Before Qt, UIA or screenshot imports.
+    if args.indicator_smoke_test:
+        from ui.activity_border import ActivityIndicator
+        indicator = ActivityIndicator(mp.get_context('spawn'))
+        try:
+            indicator.start()
+        finally:
+            indicator.close()
+        return 0 if indicator.process.exitcode == 0 else 1
     settings = Settings.load()
     if args.tier:
         settings.tier = args.tier
