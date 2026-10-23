@@ -1,0 +1,8 @@
+name: Open Notepad and write a greeting
+steps:
+  - kind: open_app
+    args: {name: notepad}
+  - kind: wait
+    args: {seconds: 1.0}
+  - kind: type_text
+    args: {text: 'Hello from GhostOS!'}

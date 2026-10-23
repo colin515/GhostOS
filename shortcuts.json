@@ -1,0 +1,6 @@
+{
+  "notepad": ["%SystemRoot%\\System32\\notepad.exe"],
+  "calculator": ["%SystemRoot%\\System32\\calc.exe"],
+  "explorer": ["%SystemRoot%\\explorer.exe"],
+  "paint": ["%SystemRoot%\\System32\\mspaint.exe"]
+}
