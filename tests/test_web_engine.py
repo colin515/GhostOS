@@ -127,3 +127,11 @@ def test_snapshot_json_is_not_truncated_mid_object():
     result = web.snapshot(verified=True)
     assert len(result) > 7000
     assert json.loads(result)['verified']
+
+
+
+def test_reconnect_observes_visible_tab_not_cdp_list_order():
+    youtube, netflix = FakePage('https://youtube.com/','YouTube'), FakePage('https://netflix.com/','Netflix')
+    youtube.evaluate = lambda script:'hidden'
+    netflix.evaluate = lambda script:'visible'
+    assert WebEngine.select_active_page([youtube,netflix]) is netflix

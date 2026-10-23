@@ -57,8 +57,34 @@ class WebEngine:
         if not self.browser.contexts:
             raise RuntimeError('CDP endpoint has no browser context')
         self.context = self.browser.contexts[0]
-        self.page = self.context.pages[0] if self.context.pages else self.context.new_page()
+        self.page = self.select_active_page(self.context.pages) if self.context.pages else self.context.new_page()
         self.page.set_default_timeout(8000)
+
+    @staticmethod
+    def select_active_page(pages):
+        """CDP page order changes across reconnects; prefer the actually visible tab."""
+        visible = []
+        for page in pages:
+            try:
+                if not page.is_closed() and page.evaluate('document.visibilityState') == 'visible':
+                    visible.append(page)
+            except Exception:
+                continue
+        if len(visible) > 1:
+            # Several browser windows can each have a visible tab. Match the foreground
+            # title when available; never change focus just to perform this observation.
+            import os
+            if os.name == 'nt':
+                import win32gui
+                foreground = win32gui.GetWindowText(win32gui.GetForegroundWindow())
+                for page in visible:
+                    try:
+                        title = page.title()
+                        if title and foreground.startswith(title):
+                            return page
+                    except Exception:
+                        continue
+        return visible[0] if visible else pages[0]
 
     def tabs(self):
         output = []

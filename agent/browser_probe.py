@@ -47,7 +47,8 @@ def run_probe():
         with tempfile.TemporaryDirectory(prefix='GhostOS-CDP-check-', ignore_cleanup_errors=True) as root:
             settings = Settings(data_dir=Path(root), browser_channel='msedge')
             web = WebEngine(settings)
-            url = f'http://127.0.0.1:{server.server_port}/'
+            base_url = f'http://127.0.0.1:{server.server_port}/'
+            url = base_url + 'youtube'
             web.execute(Action(kind='browser_navigate', args={'url':url}))
             web.execute(Action(kind='browser_fill', args={'selector':'#q', 'value':'GhostOS CDP verified'}))
             web.execute(Action(kind='browser_click', args={'selector':'#go'}))
@@ -56,11 +57,11 @@ def run_probe():
             result_page = web.page
             # Reproduce the reported wrong-site failure without external websites or a model.
             web.execute(Action(kind='browser_new_tab'))
-            web.execute(Action(kind='browser_navigate', args={'url':url + 'netflix'}))
+            web.execute(Action(kind='browser_navigate', args={'url':base_url + 'netflix'}))
             netflix = web.page
             web.page = result_page
             result_page.bring_to_front()
-            state = json.loads(web.execute(Action(kind='browser_open', args={'url':url + 'netflix'})))
+            state = json.loads(web.execute(Action(kind='browser_open', args={'url':base_url + 'netflix'})))
             if web.page != netflix or not state.get('reused_tab') or len(web.context.pages) != 2:
                 raise RuntimeError('Existing destination tab was not reused from the wrong current page')
             before = len(web.context.pages)
@@ -79,10 +80,10 @@ def run_probe():
             controller.safety = SimpleNamespace(check=lambda: None)
             native = NativeBrowser(settings, threading.Event(), controller.type_unicode)
             with uia_context():
-                state = json.loads(native.open(url + 'netflix', reuse_only=True) or '{}')
+                state = json.loads(native.open(base_url + 'netflix', reuse_only=True) or '{}')
                 if not state.get('verified') or not state.get('reused_tab'):
                     raise RuntimeError('Native UIA did not switch to the existing destination tab')
-                state = json.loads(native.open(url, new_tab=True))
+                state = json.loads(native.open(base_url + 'native', new_tab=True))
                 if not state.get('created_tab') or not state.get('verified'):
                     raise RuntimeError('Native Ctrl+T/address-bar navigation was not verified')
             # Real vendored SDK observation plus its Ollama tool-call parser, using a
@@ -113,6 +114,12 @@ def run_probe():
                     raise RuntimeError('Result tab closed when CDP disconnected')
             reconnected = WebEngine(Settings(data_dir=Path(root), cdp_url=endpoint))
             reconnected.start()
+            # Tab order/activation can change after reconnect. Locate the original
+            # unique result URL and prove navigation reuses it without reloading.
+            before = len(reconnected.context.pages)
+            restored = json.loads(reconnected.execute(Action(kind='browser_open', args={'url':url})))
+            if not restored.get('reused_tab') or len(reconnected.context.pages) != before:
+                raise RuntimeError('Original result tab was not reused after reconnect')
             if reconnected.page.locator('#result').inner_text() != 'GhostOS CDP verified':
                 raise RuntimeError('Result state was lost on reconnect')
             print('Verified CDP launch/DOM, existing-tab reuse from a different site, new tabs, tab activation, native UIA/URL fallback, Windows-Use SDK/local tool calls and persistent results')
