@@ -1,5 +1,6 @@
 """Explicit CI smoke test on a disposable window; restores cursor and previous focus."""
 import threading
+import time
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QWidget
 from agent.mouse import MouseDriver, WinMouse
@@ -44,6 +45,10 @@ def run_probe():
             mouse.scroll(-1)
             app.processEvents()
             required = {1, 2, 4, 8, 16, 'drag', 'double', 'scroll'}
+            until = time.monotonic() + 1
+            while not required.issubset(seen) and time.monotonic() < until:
+                app.processEvents()
+                time.sleep(0.01)
             if not required.issubset(seen):
                 raise RuntimeError(f'Missing native input events: {required - set(seen)}; received {seen}')
         except Exception as exc:

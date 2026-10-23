@@ -108,4 +108,6 @@ class MouseDriver:
     def scroll(self, ticks, horizontal=False):
         self.check()
         self.backend.input(0x1000 if horizontal else 0x0800, ticks * 120)
+        if self.stop.wait(0.04):
+            self.check()
         self.emit(kind='MOUSE', phase='scrolled', ticks=ticks, horizontal=horizontal)

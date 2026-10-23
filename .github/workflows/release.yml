@@ -47,7 +47,7 @@ jobs:
         run: python -c "from importlib.metadata import version; print('webrtcvad-wheels', version('webrtcvad-wheels'))"
       - name: Freeze application
         run: python build_tools/build.py
-      - name: Check frozen CLI
+      - name: Check frozen application imports, native input and neural speech
         run: |
           dist\GhostOS\GhostOS.exe --version
           dist\GhostOS\GhostOS.exe --diagnostics
