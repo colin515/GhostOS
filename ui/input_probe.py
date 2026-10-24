@@ -21,6 +21,7 @@ def run_probe():
             positions.append((event.position().x(),event.position().y()))
         def mouseDoubleClickEvent(self, event):
             seen.append('double')
+            positions.append((event.position().x(),event.position().y()))
         def wheelEvent(self, event):
             seen.append('scroll')
         def mouseMoveEvent(self, event):
@@ -66,10 +67,18 @@ def run_probe():
                 authorize=lambda a:None,check=lambda:None,events=queue.Queue()),UITree(),Vision(320))
             try:
                 controller.frame = controller.vision.capture()
+                # SendInput queues events asynchronously. Use a new location to
+                # avoid merging this press with the preceding double-click, and
+                # observe its delivery before starting the stale-window check.
+                x,y = win32gui.ClientToScreen(int(target.winId()),(round(240*ratio),round(140*ratio)))
                 sx,sy = controller.frame.model_point(x,y)
+                before = len(positions)
                 controller.execute(Action(kind='click',args={'x':sx,'y':sy,'duration':.05}))
-                app.processEvents()
-                if abs(positions[-1][0]-160)>3 or abs(positions[-1][1]-100)>3:
+                until = time.monotonic() + 1
+                while len(positions) == before and time.monotonic() < until:
+                    app.processEvents()
+                    time.sleep(.01)
+                if len(positions) == before or abs(positions[-1][0]-240)>3 or abs(positions[-1][1]-140)>3:
                     raise RuntimeError('Screenshot-coordinate click missed the intended client point: ' + str(positions[-1]))
                 before = len(positions)
                 target.move(target.x()+43,target.y()+31)
