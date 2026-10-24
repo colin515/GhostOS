@@ -131,6 +131,9 @@ def launch_practice(smoke_test=False):
                 raise RuntimeError('Practice game did not reach verified victory: ' + outcome)
             results.append('success')
         except Exception as exc:
+            import traceback
+            from agent.startup import log_startup
+            log_startup(traceback.format_exc())
             results.append(f'{type(exc).__name__}: {exc}')
         finally:
             if controller:

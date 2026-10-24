@@ -48,7 +48,7 @@ jobs:
             sleep 1
           done
           ollama pull qwen3.5:4b
-      - name: Verify real local tool calls and structured vision output
+      - name: Verify real local 4B tool calls, structured output and named control targeting
         run: python build_tools/check_local_model.py
       - name: Print local server diagnostics on failure
         if: failure()

@@ -2,6 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 import time
+import re
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from agent.models import Action
 
@@ -40,7 +41,19 @@ def load_profile(path):
     return GameProfile.model_validate(yaml.safe_load(path.read_text(encoding='utf-8')))
 
 
-def run_profile(controller, profile, emit, max_steps=0):
+def applies_to(profile, original_goal, current_step):
+    """A configured policy cannot claim completion of a different requested game."""
+    if not re.search(r'\b(?:complete|finish|beat|win)\b',current_step,re.I):
+        return False
+    if re.search(r'\bconfigured\s+(?:game|profile)\b',original_goal,re.I):
+        return True
+    generic = {'ghostos','control','game','level','profile','the','a','an','my','example'}
+    names = set(re.findall(r'\w+',profile.name.casefold())) - generic
+    words = set(re.findall(r'\w+',original_goal.casefold()))
+    return bool(names) and names <= words and any(len(name) >= 3 and not name.isdigit() for name in names)
+
+
+def run_profile(controller, profile, emit, max_steps=0, deadline=float('inf')):
     from agent.gaming_engine import GamingEngine
     from agent.window_focus import focus_window, is_agent_window
     import win32gui
@@ -55,12 +68,16 @@ def run_profile(controller, profile, emit, max_steps=0):
     if len(matches) != 1:
         raise ValueError('Game profile target is missing or ambiguous. Open the game and use its exact window title.')
     focus_window(matches[0],controller.safety.stop)
+    if controller.game:
+        controller.game.close()
     controller.game = GamingEngine(controller.safety.stop,target=matches[0])
     seen, actions, last_frame, last_wait = 0,0,0.,0.
     fired = {}
     emit('PLAN',message=f'Running game profile: {profile.name}. Completion requires its visible victory marker.')
     while not controller.safety.stop.is_set():
         controller.safety.check()
+        if time.monotonic() >= deadline:
+            return 'MAX_RUNTIME_EXCEEDED'
         try:
             controller.game.check_focus()
         except RuntimeError:

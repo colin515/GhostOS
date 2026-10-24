@@ -18,6 +18,33 @@ def test_profile_requires_a_victory_marker_and_cannot_execute_shell_scripts():
         GameProfile(**args)
 
 
+def test_profile_cannot_complete_an_unrelated_named_game_or_a_navigation_step():
+    from agent.game_profiles import applies_to
+    from types import SimpleNamespace
+    profile = SimpleNamespace(name='Control Practice',window_title='GhostOS Control Practice')
+    assert applies_to(profile,'Complete the practice game','Complete the practice game')
+    assert applies_to(profile,'Open practice and finish it','finish it')
+    assert applies_to(profile,'Complete the configured game','Complete the configured game')
+    assert not applies_to(profile,'Open Minecraft and finish it','finish it')
+    assert not applies_to(profile,'Open the practice game','Open the practice game')
+    profile.name = 'Portal 2'
+    assert applies_to(profile,'Complete Portal 2','Complete Portal 2')
+    assert not applies_to(profile,'Complete Portal 1','Complete Portal 1')
+
+
+def test_profile_runtime_limit_stops_before_sending_any_input():
+    from types import SimpleNamespace
+    from agent.game_profiles import run_profile
+    windows = MagicMock()
+    windows.EnumWindows.side_effect = lambda visitor,unused:visitor(1001,None)
+    windows.GetWindowText.return_value = 'Demo Game'
+    windows.GetForegroundWindow.return_value = 1001
+    controller = SimpleNamespace(game=None,safety=SimpleNamespace(stop=threading.Event(),check=lambda:None))
+    with patch.dict('sys.modules',{'win32gui':windows}),patch('agent.gaming_engine.GamingEngine') as engine,patch('agent.window_focus.focus_window'),patch('agent.window_focus.is_agent_window',return_value=False):
+        assert run_profile(controller,SimpleNamespace(window_title='Demo Game',name='Demo'),lambda *a,**kw:None,deadline=0) == 'MAX_RUNTIME_EXCEEDED'
+    engine.return_value.check_focus.assert_not_called()
+
+
 @pytest.mark.parametrize('cancel',[False,True])
 def test_game_chord_holds_keys_and_mouse_together_then_releases_everything(cancel):
     stop = threading.Event()

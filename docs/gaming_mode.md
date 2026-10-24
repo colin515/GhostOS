@@ -84,6 +84,11 @@ restores only the pinned game. A victory template must be unique; a generic icon
 can produce a false match. Recreate markers after changing scale, resolution or
 graphics. Template matching is not a general 3D world model.
 
+Request completion using the profile's game name, or explicitly say **Complete
+the configured game**. A practice profile cannot satisfy an unrelated named-game
+request. Non-completion tasks continue through the normal planner. Optional
+runtime and action limits also apply inside the profile loop.
+
 Model-driven finish/win requests independently inspect a fresh image for visible
 victory or final credits before accepting completion. Opening a game, dispatching
 input, or focusing it is insufficient. General gameplay still depends on the

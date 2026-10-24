@@ -119,10 +119,15 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                             feedback = f'Navigation attempt {navigation.attempts}: {type(exc).__name__}: {exc}' + navigation.context()
                             emit('RECOVERY', message=feedback[:1200])
                         continue
-                    if settings.game_mode and getattr(settings,'game_profile','') and re.search(r'\b(?:game|level|practice|match|beat|win)\b',progress.current,re.I):
-                        from agent.game_profiles import load_profile, run_profile
+                    profile = None
+                    if settings.game_mode and getattr(settings,'game_profile',''):
+                        from agent.game_profiles import load_profile, applies_to
                         profile = load_profile(settings.data_dir/'game_profiles'/settings.game_profile)
-                        outcome = run_profile(controller,profile,emit,settings.max_steps)
+                        if not applies_to(profile,progress.original,progress.current):
+                            profile = None
+                    if profile:
+                        from agent.game_profiles import run_profile
+                        outcome = run_profile(controller,profile,emit,settings.max_steps,deadline)
                         if outcome == 'GOAL_SATISFIED':
                             if complete_phase('The configured game victory marker is visible.'):
                                 return

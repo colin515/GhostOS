@@ -11,7 +11,9 @@ BUTTONS = {'left': (0x0002, 0x0004, 0), 'right': (0x0008, 0x0010, 0),
 
 class WinMouse:
     def __init__(self):
-        self.user = ctypes.windll.user32
+        # Keep prototypes private: PyDirectInput uses its own POINT structure on
+        # ctypes.windll.user32. Mutating that shared function breaks its failsafe.
+        self.user = ctypes.WinDLL('user32',use_last_error=True)
         self.user.SetCursorPos.argtypes = (ctypes.c_int, ctypes.c_int)
         self.user.GetCursorPos.argtypes = (ctypes.POINTER(wintypes.POINT),)
 

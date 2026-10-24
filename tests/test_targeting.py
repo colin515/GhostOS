@@ -1,4 +1,5 @@
 import queue
+import os
 import threading
 from types import SimpleNamespace
 import pytest
@@ -7,6 +8,18 @@ from agent.vision import Frame
 from agent.targeting import resolve_point,StaleTargetError
 from agent.models import Action
 from agent.controller import Controller
+
+
+@pytest.mark.skipif(os.name != 'nt',reason='Requires Windows cursor API')
+def test_native_cursor_does_not_change_shared_pydirectinput_prototypes():
+    import ctypes
+    from agent.mouse import WinMouse
+    shared = ctypes.windll.user32.GetCursorPos
+    previous = shared.argtypes
+    mouse = WinMouse()
+    assert mouse.user.GetCursorPos is not shared
+    assert shared.argtypes == previous
+    assert len(mouse.position()) == 2
 
 
 @pytest.mark.parametrize('scale',[1.,1.25,1.5,2.])
