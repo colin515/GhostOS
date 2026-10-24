@@ -54,8 +54,10 @@ def applies_to(profile, original_goal, current_step):
 
 
 def run_profile(controller, profile, emit, max_steps=0, deadline=float('inf')):
+    if time.monotonic() >= deadline:
+        return 'MAX_RUNTIME_EXCEEDED'
     from agent.gaming_engine import GamingEngine
-    from agent.window_focus import focus_window, is_agent_window
+    from agent.window_focus import is_agent_window
     import win32gui
     matches = []
     def visit(hwnd,_):
@@ -67,7 +69,7 @@ def run_profile(controller, profile, emit, max_steps=0, deadline=float('inf')):
         matches = [foreground]
     if len(matches) != 1:
         raise ValueError('Game profile target is missing or ambiguous. Open the game and use its exact window title.')
-    focus_window(matches[0],controller.safety.stop)
+    controller.execute(Action(kind='focus_window',args={'hwnd':matches[0]}))
     if controller.game:
         controller.game.close()
     controller.game = GamingEngine(controller.safety.stop,target=matches[0])

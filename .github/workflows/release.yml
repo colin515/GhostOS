@@ -94,7 +94,7 @@ jobs:
         run: python -c "from agent.windows_use_engine import local_desktop; from ghostos_vendor.windows_use.uia import GetRootControl; desktop = local_desktop(); assert GetRootControl(); print('Windows-Use native UIA ready')"
       - name: Freeze application
         run: python build_tools/build.py
-      - name: Check frozen imports, delivered native input, media playback, tabs, model setup and neural speech
+      - name: Check frozen imports, permission-checked game control, native targeting, media and neural speech
         run: |
           dist\GhostOS\GhostOS.exe --version
           dist\GhostOS\GhostOS.exe --diagnostics

@@ -40,9 +40,26 @@ def test_profile_runtime_limit_stops_before_sending_any_input():
     windows.GetWindowText.return_value = 'Demo Game'
     windows.GetForegroundWindow.return_value = 1001
     controller = SimpleNamespace(game=None,safety=SimpleNamespace(stop=threading.Event(),check=lambda:None))
-    with patch.dict('sys.modules',{'win32gui':windows}),patch('agent.gaming_engine.GamingEngine') as engine,patch('agent.window_focus.focus_window'),patch('agent.window_focus.is_agent_window',return_value=False):
+    with patch.dict('sys.modules',{'win32gui':windows}),patch('agent.gaming_engine.GamingEngine') as engine,patch('agent.window_focus.is_agent_window',return_value=False):
         assert run_profile(controller,SimpleNamespace(window_title='Demo Game',name='Demo'),lambda *a,**kw:None,deadline=0) == 'MAX_RUNTIME_EXCEEDED'
-    engine.return_value.check_focus.assert_not_called()
+    engine.assert_not_called()
+
+
+def test_profile_initial_focus_uses_the_permission_checked_controller():
+    from types import SimpleNamespace
+    from agent.game_profiles import run_profile
+    windows = MagicMock()
+    windows.EnumWindows.side_effect = lambda visitor,unused:visitor(1001,None)
+    windows.GetWindowText.return_value = 'Demo Game'
+    windows.GetForegroundWindow.return_value = 1001
+    execute = MagicMock(side_effect=PermissionError('Declined focus'))
+    controller = SimpleNamespace(execute=execute)
+    with patch.dict('sys.modules',{'win32gui':windows}),patch('agent.gaming_engine.GamingEngine') as engine,patch('agent.window_focus.is_agent_window',return_value=False):
+        with pytest.raises(PermissionError,match='Declined focus'):
+            run_profile(controller,SimpleNamespace(window_title='Demo Game',name='Demo'),lambda *a,**kw:None)
+    assert execute.call_args.args[0].kind == 'focus_window'
+    assert execute.call_args.args[0].args['hwnd'] == 1001
+    engine.assert_not_called()
 
 
 @pytest.mark.parametrize('cancel',[False,True])
