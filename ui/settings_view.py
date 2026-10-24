@@ -44,6 +44,9 @@ class SettingsView(QDialog):
         self.game = QCheckBox('Relative input and template polling')
         self.game.setChecked(runtime.settings.game_mode)
         form.addRow('Game mode', self.game)
+        self.game_profile = QLineEdit(runtime.settings.game_profile)
+        self.game_profile.setPlaceholderText('Optional: control-practice.yaml')
+        form.addRow('Game profile',self.game_profile)
         self.voice = QCheckBox('Microphone commands · pause to send')
         self.voice.setChecked(runtime.settings.voice_enabled)
         form.addRow('Voice input', self.voice)
@@ -93,6 +96,11 @@ class SettingsView(QDialog):
         self.output.setSingleStep(128)
         self.output.setValue(runtime.settings.prediction_tokens)
         form.addRow('Output token budget', self.output)
+        self.inference_timeout = QSpinBox()
+        self.inference_timeout.setRange(30,600)
+        self.inference_timeout.setValue(runtime.settings.inference_timeout)
+        self.inference_timeout.setSuffix(' seconds')
+        form.addRow('Model request timeout',self.inference_timeout)
         self.steps = QSpinBox()
         self.steps.setRange(0, 2147483647)
         self.steps.setSpecialValueText('Unlimited')
@@ -103,7 +111,7 @@ class SettingsView(QDialog):
         self.runtime_limit.setSpecialValueText('Unlimited')
         self.runtime_limit.setValue(runtime.settings.max_runtime)
         form.addRow('Runtime limit (seconds)', self.runtime_limit)
-        ai_widgets = (self.engine, self.tier, self.model, self.browser, self.cdp, self.game, self.width, self.output, self.steps, self.runtime_limit)
+        ai_widgets = (self.engine, self.tier, self.model, self.browser, self.cdp, self.game, self.game_profile, self.width, self.output,self.inference_timeout, self.steps, self.runtime_limit)
         for row in range(form.rowCount()):
             field = form.itemAt(row, QFormLayout.ItemRole.FieldRole)
             if field and field.widget():
@@ -131,6 +139,10 @@ class SettingsView(QDialog):
         setup.clicked.connect(self.open_setup)
         setup.setEnabled(not runtime.running)
         body_layout.addWidget(setup)
+        practice = QPushButton('Open control practice game')
+        practice.setVisible(section == 'ai')
+        practice.clicked.connect(self.open_practice)
+        body_layout.addWidget(practice)
         body_layout.addStretch()
         self.note = QLabel('')
         layout.addWidget(self.note)
@@ -144,6 +156,15 @@ class SettingsView(QDialog):
         from dataclasses import replace
         candidate = replace(self.runtime.settings, speech_voice=self.speech_voice.currentData(), speech_rate=self.rate.value())
         self.runtime.speech.say("Hello. I'm GhostOS. Ready when you are.", priority=True, settings=candidate)
+
+    def open_practice(self):
+        import subprocess,sys
+        from config import RESOURCE_DIR
+        command = [sys.executable,'--practice-game'] if getattr(sys,'frozen',False) else [sys.executable,str(RESOURCE_DIR/'main.py'),'--practice-game']
+        subprocess.Popen(command,shell=False)
+        self.game.setChecked(True)
+        self.game_profile.setText('control-practice.yaml')
+        self.note.setText('Save settings, then ask GhostOS to complete the practice game. Templates and profile are prepared automatically.')
 
     def load_voices(self):
         if self.voice_task and self.voice_task.isRunning():
@@ -192,13 +213,13 @@ class SettingsView(QDialog):
             candidate = replace(self.runtime.settings, tier=self.tier.currentIndex() + 1,
                                 model=self.model.text().strip(), computer_use_engine=self.engine.currentData(), cdp_url=self.cdp.text().strip(),
                                 browser_channel=self.browser.currentText(),
-                                game_mode=self.game.isChecked(), voice_enabled=self.voice.isChecked(),
+                                game_mode=self.game.isChecked(),game_profile=self.game_profile.text().strip(), voice_enabled=self.voice.isChecked(),
                                 narrate_actions=self.narrate.isChecked(), tts_enabled=self.tts.isChecked(),
                                 speech_voice=self.speech_voice.currentData(), speech_rate=self.rate.value(),
                                 speech_engine=self.speech_engine.currentData(), voice_approval=self.voice_approval.isChecked(),
                                 max_runtime=self.runtime_limit.value(),
                                 vad_silence=self.silence.value(), screenshot_width=self.width.value(),
-                                prediction_tokens=self.output.value(), max_steps=self.steps.value())
+                                prediction_tokens=self.output.value(),inference_timeout=self.inference_timeout.value(), max_steps=self.steps.value())
             candidate.save()
             self.runtime.settings = candidate
         except (ValueError, OSError) as exc:

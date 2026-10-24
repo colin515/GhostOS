@@ -21,11 +21,14 @@ class Click(Args):
     button: Literal['left', 'right', 'middle', 'x1', 'x2'] = 'left'
     clicks: int = Field(default=1, ge=1, le=2)
     duration: float = Field(default=0.35, ge=0.05, le=5)
+    coordinate_space: Literal['screenshot', 'normalized_1000'] = 'screenshot'
+    target: str = Field(default='', max_length=120, description='Exact accessible label when available')
 
 class Cursor(Args):
     x: int = Field(ge=0)
     y: int = Field(ge=0)
     duration: float = Field(default=0.35, ge=0.05, le=5)
+    coordinate_space: Literal['screenshot', 'normalized_1000'] = 'screenshot'
 
 class Drag(Click):
     to_x: int = Field(ge=0)
@@ -94,6 +97,19 @@ class GameKey(Args):
     key: str = Field(min_length=1, max_length=30)
     duration: float = Field(default=0.2, ge=0.01, le=2)
 
+class GameClick(Args):
+    button: Literal['left','right','middle'] = 'left'
+
+class GameBind(Args):
+    title: str = Field(min_length=3,max_length=200)
+
+class GameAction(Move):
+    dx: int = Field(default=0,ge=-3000,le=3000)
+    dy: int = Field(default=0,ge=-3000,le=3000)
+    keys: list[str] = Field(default_factory=list,max_length=6)
+    buttons: list[Literal['left','right','middle']] = Field(default_factory=list,max_length=3)
+    duration: float = Field(default=.2,ge=.01,le=2)
+
 class Template(Args):
     name: str = Field(pattern=r'^[A-Za-z0-9_-]+\.png$')
     threshold: float = Field(default=0.85, ge=0.5, le=1)
@@ -103,14 +119,14 @@ ARG_TYPES = {
     'open_app': App, 'ensure_app': EnsureApp, 'app_list': AppQuery, 'focus_window': WindowHandle, 'ui_click': Element, 'browser_navigate': URL,
     'browser_click': Locator, 'browser_fill': Fill, 'browser_snapshot': Empty, 'browser_media': Media,
     'browser_open': BrowserOpen, 'browser_new_tab': BrowserTab, 'browser_tabs': Empty, 'browser_switch_tab': TabId,
-    'game_move': Move, 'game_key': GameKey, 'game_click': Empty,
+    'game_move': Move, 'game_key': GameKey, 'game_click': GameClick, 'game_action': GameAction, 'game_bind':GameBind,
     'template_click': Template, 'focus': Empty,
 }
 ActionKind = Literal[
     'mouse_move', 'drag', 'scroll', 'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click', 'app_list', 'focus_window',
     'browser_navigate', 'browser_click', 'browser_fill', 'browser_snapshot', 'browser_media',
     'browser_open', 'browser_new_tab', 'browser_tabs', 'browser_switch_tab',
-    'game_move', 'game_key', 'game_click', 'template_click', 'focus', 'ensure_app',
+    'game_move', 'game_key', 'game_click', 'game_action', 'game_bind', 'template_click', 'focus', 'ensure_app',
 ]
 
 class Action(BaseModel):
@@ -145,8 +161,12 @@ browser_new_tab {backend:"auto"} actually creates and verifies a new tab;
 browser_tabs {} lists CDP tab IDs, titles and URLs; browser_switch_tab {tab_id:0} activates a listed tab;
 browser_media {operation:"play"|"pause"|"state"} controls the current HTML5 video/audio and verifies its state; opening YouTube is not evidence of playback;
 browser_snapshot {}; game_move {dx:50,dy:0}; game_key {key:"w",duration:0.2};
-game_click {}; template_click {name:"target.png",threshold:0.85}.
+game_click {button:"left"}; template_click {name:"target.png",threshold:0.85}.
+game_action {keys:["shift","w"],buttons:["right"],dx:35,dy:0,duration:0.2} holds a chord and moves the camera together; all held input releases afterward.
+game_bind {title:"Exact captured game window title"} binds the current captured foreground game after a launcher/window transition; never bind an unrelated app.
 Coordinates are pixels in the latest resized screenshot. UIA IDs only apply to current tree.
+For click/drag/mouse_move, coordinate_space defaults to "screenshot". Explicit "normalized_1000" means 0..1000 on both axes; do not infer a space from the numbers.
+click/drag target:"Exact button label" uses unique live accessibility bounds. Prefer this or ui_click to estimated coordinates.
 ensure_app {name:"chrome",strategy:"focus"|"launch"|"search"} focuses/maximizes a running app,
 launches an installed app, or launches natively (legacy search maps to direct launch). Apps: chrome, edge, firefox, notepad, calculator, explorer, paint, store (Microsoft Store).
 app_list {query:"word"} reads installed Windows app names; open_app {name:"exact installed name"} launches them directly.

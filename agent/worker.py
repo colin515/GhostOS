@@ -2,6 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 import json
+import re
 import os
 import queue
 import time
@@ -49,6 +50,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
         vision = Vision(settings.screenshot_width, settings.data_dir / 'templates')
         tree = UITree()
         controller = Controller(settings, safety, tree, vision)
+        controller.original_goal = goal or ''
         controller.browser_explicit = navigation.app in ('chrome', 'edge', 'firefox')
         if settings.game_mode:
             emit('PLAN', message='Focus your game now. Starting capture in 3 seconds.')
@@ -117,6 +119,17 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                             feedback = f'Navigation attempt {navigation.attempts}: {type(exc).__name__}: {exc}' + navigation.context()
                             emit('RECOVERY', message=feedback[:1200])
                         continue
+                    if settings.game_mode and getattr(settings,'game_profile','') and re.search(r'\b(?:game|level|practice|match|beat|win)\b',progress.current,re.I):
+                        from agent.game_profiles import load_profile, run_profile
+                        profile = load_profile(settings.data_dir/'game_profiles'/settings.game_profile)
+                        outcome = run_profile(controller,profile,emit,settings.max_steps)
+                        if outcome == 'GOAL_SATISFIED':
+                            if complete_phase('The configured game victory marker is visible.'):
+                                return
+                            pending_phase = True
+                            continue
+                        emit('STATUS',status=outcome)
+                        return
                     media = playback_action(progress.current)
                     if media and not media_attempted:
                         media_attempted = True
@@ -188,6 +201,18 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                         feedback = 'DECISION_ACTION_REQUIRED. The goal remains active. Inspect fresh evidence, choose another safe strategy, or wait for the user to unblock the desktop. Focus is recoverable. Do not repeat uncertain writes.' + recovery.context()
                         continue
                     if decision.status == 'GOAL_SATISFIED':
+                        if settings.game_mode and re.search(r'\b(?:finish|complete|beat|win)\b',progress.current,re.I):
+                            try:
+                                fresh = vision.capture()
+                                pinned = getattr(getattr(controller,'game',None),'target',None)
+                                game_won = (not pinned or fresh.window == pinned) and brain.verify_game_win(progress.current,fresh)
+                            except Exception:
+                                game_won = False
+                            if not game_won:
+                                emit('RECOVERY',message='No visible game-completion evidence was verified. Continuing instead of stopping after input or app focus.')
+                                feedback = 'DECISION_ACTION_REQUIRED. The game/level is not visibly won. Continue playing; do not claim success from input being sent.'
+                                continue
+                            substantive_actions = max(1,substantive_actions)
                         media_goal = playback_action(progress.current)
                         if media_goal:
                             try:

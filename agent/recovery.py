@@ -11,6 +11,7 @@ class RecoveryStep:
 class Recovery:
     def __init__(self, goal, game_mode=False):
         self.app = None if game_mode else requested_app(goal)
+        self.game_mode,self.game_recovery_added = game_mode,False
         self.history = []
         self.position = 0
         self.steps = []
@@ -28,6 +29,9 @@ class Recovery:
         return self.position >= len(self.steps)
 
     def attempt(self, controller, emit, reason):
+        if self.game_mode and getattr(controller,'game',None) is not None and not self.game_recovery_added:
+            self.steps.insert(self.position,RecoveryStep('Restore the pinned game window',(Action(kind='focus'),)))
+            self.game_recovery_added = True
         if self.exhausted:
             return False
         step = self.steps[self.position]

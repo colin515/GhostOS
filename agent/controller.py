@@ -31,6 +31,9 @@ class Controller:
         if kind == 'app_list':
             from agent.windows_apps import WindowsApps
             apps = WindowsApps(self.safety.stop).registered_apps()
+            from agent.installed_games import installed_games
+            apps = dict(apps)
+            apps.update({name:'steam://' + game.app_id for name,game in installed_games().items()})
             query = a['query'].casefold()
             return json.dumps({'installed_apps':[name for name in apps if query in name.casefold()][:100]})
         if kind == 'focus_window':
@@ -49,37 +52,77 @@ class Controller:
                 self.safety.check()
             return 'Wait finished'
         if kind == 'focus':
+            if self.game is not None:
+                from agent.window_focus import focus_window
+                focus_window(self.game.target,self.safety.stop)
+                return 'Restored the pinned game window'
+            if self.settings.game_mode:
+                raise RuntimeError('No game window is pinned yet; focus the intended game before game input')
             self.focus_guard.ensure_external()
             if self.focus_guard.last:
                 from agent.window_focus import focus_window
                 focus_window(self.focus_guard.last, self.safety.stop)
             return 'Requested foreground window focus'
         if kind == 'ui_click':
+            from agent.targeting import verify_window
+            verify_window(self.frame,geometry=False)
             x, y = self.tree.center(a['element_id'])
-            self.mouse_driver().click(x, y)
+            from agent.targeting import verify_live_center
+            mouse = self.mouse_driver()
+            mouse.before_press = lambda: verify_live_center((x,y),self.tree.center(a['element_id']))
+            mouse.click(x, y)
             return 'UIA control clicked'
         if kind.startswith('game_'):
             if not self.settings.game_mode:
                 raise PermissionError('Enable Game Mode first')
+            if kind == 'game_bind':
+                from agent.targeting import verify_window
+                verify_window(self.frame,geometry=False)
+                import win32gui
+                if not self.frame or not self.frame.window or win32gui.GetWindowText(self.frame.window).casefold() != a['title'].casefold():
+                    raise ValueError('Game binding requires the exact title of the currently captured foreground window')
+                if self.game:
+                    self.game.close()
+                from agent.gaming_engine import GamingEngine
+                self.game = GamingEngine(self.safety.stop,target=self.frame.window)
+                return json.dumps({'verified':True,'game_window':self.game.target,'title':a['title']})
             if self.game is None:
                 from agent.gaming_engine import GamingEngine
-                self.game = GamingEngine(self.safety.stop)
+                self.game = GamingEngine(self.safety.stop,target=self.frame.window if self.frame else None)
             if kind == 'game_move':
                 self.game.move(a['dx'], a['dy'])
             elif kind == 'game_key':
                 self.game.key(a['key'], a['duration'])
             elif kind == 'game_click':
-                self.game.click()
+                self.game.click(a['button'])
+            elif kind == 'game_action':
+                self.game.action(**a)
             return 'Game input sent'
         if kind in ('click', 'mouse_move', 'drag'):
-            if self.frame is None:
-                raise RuntimeError('A screenshot is required for coordinate input')
-            x, y = self.frame.physical(a['x'], a['y'])
+            from agent.targeting import resolve_point, verify_window, verify_patch
+            if kind in ('drag','mouse_move'):
+                verify_window(self.frame)
+            if kind == 'mouse_move' and self.frame:
+                x,y = self.frame.point(a['x'],a['y'],a.get('coordinate_space','screenshot'))
+                source = 'vision'
+            else:
+                (x,y),source = resolve_point(self.frame,a,self.tree,self.vision,self.settings.game_mode)
+            sx,sy = self.frame.model_point(x,y)
+            self.safety.events.put({'kind':'TARGET','source':source,'physical':[x,y], 'screenshot':[sx,sy],
+                                    'window':self.frame.window,'label':a.get('target','')},timeout=0.2)
+            self.safety.events.put({'kind':'FRAME','image':self.frame.annotated(sx,sy,a.get('target') or kind).base64()},timeout=0.2)
             mouse = self.mouse_driver()
+            if source == 'accessibility-label':
+                from agent.targeting import verify_live_center
+                mouse.before_press = lambda: verify_live_center((x,y),self.tree.find(a['target']))
+            else:
+                mouse.before_press = lambda: verify_window(self.frame)
             if kind == 'mouse_move':
                 mouse.move(x, y, a['duration'])
             elif kind == 'drag':
-                to_x, to_y = self.frame.physical(a['to_x'], a['to_y'])
+                to_x, to_y = self.frame.point(a['to_x'], a['to_y'],a.get('coordinate_space','screenshot'))
+                if not self.settings.game_mode:
+                    verify_patch(self.frame,self.vision.capture(),(to_x,to_y))
                 mouse.drag(x, y, to_x, to_y, a['button'], a['duration'])
             else:
                 mouse.click(x, y, a['button'], a['clicks'], a['duration'])
@@ -111,7 +154,7 @@ class Controller:
             if self.settings.game_mode:
                 if self.game is None:
                     from agent.gaming_engine import GamingEngine
-                    self.game = GamingEngine(self.safety.stop)
+                    self.game = GamingEngine(self.safety.stop,target=frame.window)
                 self.game.check_focus()
             self.mouse_driver().click(x, y)
         elif kind == 'open_app':
@@ -146,6 +189,12 @@ class Controller:
         return browser
 
     def browser_action(self, action):
+        if 'url' in action.args:
+            from agent.navigation import canonical_destination
+            canonical = canonical_destination(getattr(self,'original_goal',''),action.args['url'])
+            if canonical != action.args['url']:
+                self.safety.events.put({'kind':'BROWSER_TARGET_CORRECTED','message':'Using the canonical ChatGPT destination requested by the user.'},timeout=.2)
+                action = Action(kind=action.kind,args={**action.args,'url':canonical})
         kind, a = action.kind, action.args
         navigation = kind in ('browser_open', 'browser_navigate', 'browser_new_tab')
         backend = a.get('backend', 'auto')
@@ -222,6 +271,9 @@ class Controller:
         if self.mouse is None:
             from agent.mouse import MouseDriver
             self.mouse = MouseDriver(self.safety.stop, lambda **e: self.safety.events.put(e, timeout=0.2))
+        from agent.targeting import verify_window
+        self.mouse.guard = lambda: verify_window(self.frame,geometry=False)
+        self.mouse.before_press = None
         return self.mouse
 
     def type_unicode(self, text):

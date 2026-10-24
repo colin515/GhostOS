@@ -25,6 +25,9 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument('--desktop', action='store_true')
     p.add_argument('--web', action='store_true', help='Enable authenticated LAN dashboard')
     p.add_argument('--game', action='store_true')
+    p.add_argument('--game-profile', help='YAML filename in the local game_profiles folder')
+    p.add_argument('--practice-game', action='store_true', help='Open the built-in control practice game')
+    p.add_argument('--game-smoke-test', action='store_true', help='Complete the practice game using real native input')
     p.add_argument('--goal')
     p.add_argument('--recipe', type=Path)
     p.add_argument('--watch', type=Path, help='Directory whose changes trigger --recipe')
@@ -49,6 +52,9 @@ def main(argv=None) -> int:
         print('GhostOS requires Windows 10/11 x64.', file=sys.stderr)
         return 2
     enable_dpi_awareness()  # Before Qt, UIA or screenshot imports.
+    if args.practice_game or args.game_smoke_test:
+        from ui.practice_game import launch_practice
+        return launch_practice(smoke_test=args.game_smoke_test)
     if args.browser_smoke_test:
         from agent.browser_probe import run_probe
         return run_probe()
@@ -73,7 +79,11 @@ def main(argv=None) -> int:
     settings = Settings.load()
     if args.tier:
         settings.tier = args.tier
-    settings.game_mode = args.game
+    if args.game:
+        settings.game_mode = True
+    if args.game_profile:
+        settings.game_mode,settings.game_profile = True,args.game_profile
+        settings.__post_init__()
     if args.setup:
         from setup import run_console
         return run_console(settings)

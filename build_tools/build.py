@@ -57,6 +57,7 @@ StringStruct('LegalCopyright','GPL-3.0-or-later')])]), VarFileInfo([VarStruct('T
                    'win32job', 'win32gui', 'win32api', 'sounddevice', 'webrtcvad', '_webrtcvad'):
         command += ['--hidden-import', module]
     command += ['--collect-submodules', 'comtypes.gen']
+    command += ['--copy-metadata','vdf']
     command += ['--exclude-module', 'PySide6', '--exclude-module', 'PyQt5', 'launcher.py']
     subprocess.run(command, check=True)
     # Record the exact environment used for each executable; attach during release.

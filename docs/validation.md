@@ -1,4 +1,4 @@
-# Validation · GhostOS 1.3.2
+# Validation · GhostOS 1.4.0
 
 Automated unit/regression coverage runs on Linux and Windows. The release pipeline
 also installs all Windows dependencies, freezes the app, checks frozen imports,
@@ -15,7 +15,22 @@ through the real SDK adapter against a loopback fixture.
 Inno Setup compilation and a real silent install/uninstall must succeed before
 GitHub publishes the downloadable installer.
 
+Native input probes also click through the actual Controller/capture transform
+at default and 150% Qt scaling, then move the target window to verify stale input
+is rejected. A separate frozen practice game requires three precise clicks,
+simultaneous Shift+W, held right mouse plus camera movement, a final click and
+three fresh victory-marker observations. Actual Qt input events establish the
+result; mocks alone cannot pass these probes.
+
 Regression coverage includes:
+
+- the user-contributed UI tree, browser probe, indicator, speech, diagnostics,
+  gaming-engine and directory-watcher tests merged in PR #3;
+- physical coordinate mapping at 100/125/150/200% scale, negative screen origins,
+  changed target patches, live accessibility labels and cursor drift before press;
+- canonical ChatGPT destinations, installed Steam libraries, conservative typo
+  matching, launcher aliases, ambiguous titles and distinct numbered game editions;
+- game-profile input restrictions and held-input release after cancellation;
 
 - the reported YouTube-open-plus-play request, separate pending steps and rejected
   false model completion while playback is paused;
@@ -49,9 +64,11 @@ Tests deny external Python socket connections. Speech unit tests use fake audio
 engines; the frozen voice probe synthesizes locally with ONNX telemetry disabled.
 No test needs a cloud model or sends microphone recordings off the PC. A separate
 Linux release job uses a checksum-pinned Ollama server and real local
-`qwen3.5:0.8b` weights to exercise native tool calling and the full structured
+`qwen3.5:4b` weights to exercise native tool calling and the full structured
 action schema on CPU. Its model digest and verification results are attached to
-the release. This validates protocol compatibility, not 4B/GPU task accuracy.
+the release. It also checks selection of the named Play accessibility target in
+a synthetic image. This validates those specific CPU tasks, not general GPU
+workflow accuracy.
 
 Automated checks do not establish reliable completion of arbitrary natural
 language tasks. The Galaxus purchase/search workflow, real microphone acoustics,

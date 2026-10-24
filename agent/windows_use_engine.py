@@ -63,7 +63,7 @@ class WindowsUseBrain:
         ensure_local_vision(metadata)
         self.settings, self.context = settings, Context()
         self.tools_supported = 'tools' in (metadata.get('capabilities') or [])
-        self.llm = ChatOllama(model=settings.model, host=settings.ollama_host, timeout=90,
+        self.llm = ChatOllama(model=settings.model, host=settings.ollama_host, timeout=settings.inference_timeout,
                              temperature=0, options={'num_ctx':settings.context_tokens,
                              'num_predict':settings.prediction_tokens}, keep_alive='3m', **thinking_option(metadata))
         self.desktop = local_desktop() if observe and os.name == 'nt' else None
@@ -86,12 +86,13 @@ class WindowsUseBrain:
             if len(nodes) >= 100:
                 break
             x, y = node.center.x, node.center.y
-            if not (0 <= x < original_width and 0 <= y < original_height):
+            try:
+                model_x, model_y = frame.model_point(x,y)
+            except ValueError:
                 continue
             nodes.append({'name': node.name[:120], 'type': node.control_type,
                           'window': node.window_name[:100],
-                          'x': min(width - 1, round(x * width / original_width)),
-                          'y': min(height - 1, round(y * height / original_height))})
+                          'x': model_x, 'y': model_y})
         return {'engine': 'Windows-Use', 'foreground': state.active_window.name if state.active_window else '',
                 'windows': [{'title': w.name[:160], 'handle':w.handle, 'status':w.status.value}
                             for w in state.windows[:25]], 'controls':nodes}
@@ -106,10 +107,12 @@ class WindowsUseBrain:
         try:
             desktop = self.observation(frame)
         except Exception as exc:
-            desktop = {'warning': f'Windows-Use observation failed: {exc}', 'fallback_ui_tree':tree}
+            desktop = {'warning': f'Windows-Use observation failed: {exc}', 'fallback_ui_tree':frame.tree_for_model(tree)}
             if emit:
                 emit('WARNING', message='Windows-Use accessibility provider unavailable; using the current screenshot and fallback UIA.')
         nudge = self.loop_guard.check() or ''
+        # UIA click IDs always belong to GhostOS's current live tree, never SDK indices.
+        desktop['targets'] = frame.tree_for_model(tree)
         from agent.context_budget import pack_prompt
         tool_chars = len(json.dumps([tool.json_schema for tool in self.tools])) if self.tools_supported else 0
         prompt = pack_prompt(goal,self.context.text(),desktop,browser_state,feedback + '\n' + nudge,

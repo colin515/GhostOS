@@ -42,12 +42,25 @@ class WinMouse:
 
 
 class MouseDriver:
-    def __init__(self, stop, emit=lambda **event: None, backend=None):
+    def __init__(self, stop, emit=lambda **event: None, backend=None, guard=None):
         self.stop, self.emit, self.backend = stop, emit, backend or WinMouse()
+        self.guard = guard
+        self.before_press = None
 
     def check(self):
         if self.stop.is_set():
             raise InterruptedError('Mouse action stopped')
+        if self.guard:
+            self.guard()
+
+    def verify_endpoint(self, x, y):
+        self.check()
+        if self.before_press:
+            self.before_press()
+        if math.dist(self.backend.position(), (x,y)) > 3:
+            raise RuntimeError('Cursor moved before button press; no click was sent')
+        if hasattr(self.backend,'validate_target'):
+            self.backend.validate_target(x,y)
 
     def move(self, x, y, duration=0.35):
         self.check()
@@ -83,7 +96,7 @@ class MouseDriver:
         self.move(x, y, duration)
         down, up, data = BUTTONS[button]
         for index in range(clicks):
-            self.check()
+            self.verify_endpoint(x,y)
             try:
                 self.backend.input(down, data)
                 self.stop.wait(0.04)
@@ -99,6 +112,7 @@ class MouseDriver:
         down, up, data = BUTTONS[button]
         self.check()
         try:
+            self.verify_endpoint(x,y)
             self.backend.input(down, data)
             self.move(to_x, to_y, duration)
         finally:

@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.3.2
+# Architecture · GhostOS 1.4.0
 
 The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
 LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,
@@ -59,22 +59,37 @@ switches the run to native controls and offers an optional setup explanation.
 Uncertain form operations are never automatically replayed. Browser processes
 and result tabs remain open after successful worker exit. See [browser setup](browser_control.md).
 
-UIA provides current physical control bounds. `ui_click` verifies the foreground
-window and moves the real cursor to the current element centre. Coordinate
-clicks, smooth moves, double clicks, drag/drop, vertical/horizontal scrolling,
-and left/right/middle/X1/X2 buttons share `MouseDriver`. Screenshot coordinates
-are transformed to primary-monitor physical pixels exactly once. The native
-backend uses SetCursorPos, GetCursorPos and checked SendInput. Movement uses
-smoothstep interpolation, checks Stop every 10ms and verifies the endpoint.
-Drags always release their button, including on errors and cancellation. Debug
-MOUSE events include requested/observed coordinates and button operations.
-Target selection from vision remains primary-monitor only; the safety border
-covers all monitors. A user moving the cursor or a protected input surface can
-invalidate an action; this is detected rather than claiming universal success.
+UIA provides live physical bounds. Each observation records its window handle,
+physical capture origin, original size and resized image size. The active external
+window can be on any monitor, including negative desktop coordinates. UIA nodes
+are converted to image coordinates before inference; actions convert back exactly
+once. Explicit normalized-1000 coordinates are supported without heuristic guessing.
 
-Game Mode uses relative SendInput/PyDirectInput, short key bursts and fast OpenCV
-template observations between slower vision calls. UIA and heavy grids are off.
-It is not a frame-rate game AI and does not bypass protected input systems.
+`ui_click` validates live element identity, foreground ownership and bounds just
+before pressing. Unique accessible labels can also resolve a target. Coordinate
+clicks compare a fresh target patch and reject stale geometry. MouseDriver checks
+focus throughout smooth movement and rechecks the cursor endpoint before every
+press. A user moving the cursor cancels that press. Drags release on all exit
+paths. TARGET events include the physical/image point and annotated preview;
+MOUSE events include requested/observed positions. Windows can reject input on
+protected surfaces; no driver or privilege bypass is attempted.
+
+Canonical named destinations resolve ChatGPT directly. Installed-app matching uses
+exact names first, explicit launcher aliases second and conservative unambiguous
+fuzzy matching last; it never invents a website from an unknown game name. Steam
+inventory reads trusted local VDF manifests and validates an actual installed
+directory. Numeric AppIDs activate through Steam; a game window is verified by
+its process executable inside that directory. Start Menu launches retain their
+registered application IDs. Unknown or ambiguous names stay pending.
+
+Game Mode supports simultaneous keys/buttons and relative mouse motion with
+focus/cancellation checks and unconditional input release. `game_bind` requires
+the exact observed foreground title. Optional YAML profiles run fast template
+policies and require repeated fresh victory matches; they share permissions and
+cannot execute shell commands. Without a profile, finish/win claims receive an
+independent fresh-image victory check. The offline practice game verifies all
+control stages with real Windows input. This establishes input capability rather
+than universal game-playing competence. See [gaming mode](gaming_mode.md).
 
 ## Persistent execution
 

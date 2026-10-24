@@ -10,8 +10,19 @@ from agent.windows_apps import requested_app
 # Only names in the user's own request are resolved. Never invent a URL from page text.
 SITES = {'netflix': 'https://www.netflix.com/', 'youtube': 'https://www.youtube.com/',
          'galaxus': 'https://www.galaxus.ch/', 'google': 'https://www.google.com/',
-         'wikipedia': 'https://www.wikipedia.org/', 'github': 'https://github.com/'}
+         'wikipedia': 'https://www.wikipedia.org/', 'github': 'https://github.com/',
+         'chatgpt':'https://chatgpt.com/', 'chat gpt':'https://chatgpt.com/',
+         'chatgbt':'https://chatgpt.com/', 'chat gbt':'https://chatgpt.com/', 'openai chatgpt':'https://chatgpt.com/'}
 DOMAIN = re.compile(r'(?<![\w@./])(?:https?://)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?::\d+)?(?:/[^\s<>"\']*)?')
+
+
+def canonical_destination(goal, url):
+    if DOMAIN.search(goal or ''):
+        return url  # Explicit user URLs always retain their exact destination.
+    host = (urlsplit(url).hostname or '').casefold().removeprefix('www.')
+    if host == 'chatgbt.com' and re.search(r'\bchat\s*g[pb]t\b',goal or '',re.I):
+        return 'https://chatgpt.com/'
+    return url
 
 
 def same_destination(actual, requested):
@@ -41,7 +52,7 @@ class Navigation:
     def parse(cls, goal, game_mode=False):
         task = cls(goal or '')
         text = task.goal.lower()
-        if game_mode or re.search(r"\b(?:don't|do not|never)\b|\b(?:how (?:do|can|to)|explain|tell me how)\b", text):
+        if re.search(r"\b(?:don't|do not|never)\b|\b(?:how (?:do|can|to)|explain|tell me how)\b", text):
             return task
         task.app = requested_app(text)
         task.new_tab = bool(re.search(r'\b(?:new|another)\s+(?:browser\s+)?tab\b', text))
@@ -58,7 +69,8 @@ class Navigation:
                 task.url = 'https://' + task.url
             remaining = remaining.replace(match.group().lower(), ' ')
         elif re.search(r'\b(?:open|go|navigate|visit|switch|show|access)\b', text):
-            for name, url in SITES.items():
+            for name in sorted(SITES,key=len,reverse=True):
+                url = SITES[name]
                 # "Google Chrome" is an application, not a request for google.com.
                 if name == 'google' and 'google chrome' in text:
                     continue
@@ -67,6 +79,12 @@ class Navigation:
                     remaining = re.sub(r'\b' + name + r'\b', ' ', remaining)
                     break
         if not (task.app or task.url or task.new_tab):
+            match_app = re.fullmatch(r'(?:(?:please|okay|ok|could|can|would|you|i|want|like|to|just)\s+)*(?:open|launch|start)\s+(?:(?:the|game|app|application)\s+)*(.{1,80}?)\s*[.!?]*',task.goal,re.I)
+            if match_app:
+                name = match_app.group(1).strip(' .!?')
+                if (name.lower() not in ('this','that','this game','that game','it')
+                        and not re.search(r'\b(?:and|then|search|find|play|fill|type|click|download|website|site|page)\b',name,re.I)):
+                    task.app,task.simple = name,True
             return task
         if not re.search(r'\b(?:open|launch|start|go|navigate|visit|switch|show|access|bring)\b', text):
             task.app = None  # Mentioning an app is not authorization to launch it.
@@ -112,7 +130,8 @@ class Navigation:
             elif self.new_tab:
                 self.verified = bool(data.get('verified') and data.get('created_tab'))
             else:
-                self.verified = bool(data.get('verified') and data.get('app') == self.app and data.get('foreground'))
+                requested = data.get('requested_app',data.get('app',''))
+                self.verified = bool(data.get('verified') and str(requested).casefold() == self.app.casefold() and data.get('foreground'))
         except (ValueError, TypeError):
             pass
 
@@ -125,7 +144,7 @@ class Navigation:
         if self.new_tab:
             return 'Opened a new browser tab.'
         from agent.windows_apps import APPS
-        return f'{APPS[self.app].label} is open.'
+        return f'{APPS[self.app].label if self.app in APPS else self.evidence.get("app",self.app)} is open.'
 
     def context(self):
         return ('\nNavigation requirements: ' + json.dumps({'app': self.app, 'url': self.url,

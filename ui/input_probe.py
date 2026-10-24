@@ -14,10 +14,11 @@ def run_probe():
     original_focus = win32gui.GetForegroundWindow()
     backend = WinMouse()
     original_cursor = backend.position()
-    errors, seen = [], []
+    errors, seen, positions = [], [], []
     class Target(QWidget):
         def mousePressEvent(self, event):
             seen.append(event.button().value)
+            positions.append((event.position().x(),event.position().y()))
         def mouseDoubleClickEvent(self, event):
             seen.append('double')
         def wheelEvent(self, event):
@@ -51,6 +52,38 @@ def run_probe():
                 time.sleep(0.01)
             if not required.issubset(seen):
                 raise RuntimeError(f'Missing native input events: {required - set(seen)}; received {seen}')
+            # Exercise the same crop/resize/origin pipeline as a model click, not
+            # just the low-level mouse driver. The widget records actual hit coordinates.
+            import queue
+            from types import SimpleNamespace
+            from config import Settings
+            from agent.controller import Controller
+            from agent.vision import Vision
+            from agent.ui_tree import UITree
+            from agent.models import Action
+            from agent.targeting import StaleTargetError
+            controller = Controller(Settings(tier=3),SimpleNamespace(stop=threading.Event(),
+                authorize=lambda a:None,check=lambda:None,events=queue.Queue()),UITree(),Vision(320))
+            try:
+                controller.frame = controller.vision.capture()
+                sx,sy = controller.frame.model_point(x,y)
+                controller.execute(Action(kind='click',args={'x':sx,'y':sy,'duration':.05}))
+                app.processEvents()
+                if abs(positions[-1][0]-160)>3 or abs(positions[-1][1]-100)>3:
+                    raise RuntimeError('Screenshot-coordinate click missed the intended client point: ' + str(positions[-1]))
+                before = len(positions)
+                target.move(target.x()+43,target.y()+31)
+                app.processEvents()
+                try:
+                    controller.execute(Action(kind='click',args={'x':sx,'y':sy,'duration':.05}))
+                except StaleTargetError:
+                    pass
+                else:
+                    raise RuntimeError('A stale coordinate was accepted after the window moved')
+                if len(positions) != before:
+                    raise RuntimeError('A click was sent despite changed window geometry')
+            finally:
+                controller.close()
         except Exception as exc:
             errors.append(str(exc))
         finally:

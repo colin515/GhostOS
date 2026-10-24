@@ -15,7 +15,7 @@ concurrency:
 jobs:
   local-model:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       OLLAMA_HOST: 127.0.0.1:11434
       OLLAMA_NO_CLOUD: '1'
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .ollama-models
-          key: ollama-cpu-qwen35-08b-protocol-v1
+          key: ollama-cpu-qwen35-4b-grounding-v1
       - name: Start loopback-only local server and download test weights
         run: |
           ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
@@ -47,7 +47,7 @@ jobs:
             if curl --fail --silent http://127.0.0.1:11434/api/version; then break; fi
             sleep 1
           done
-          ollama pull qwen3.5:0.8b
+          ollama pull qwen3.5:4b
       - name: Verify real local tool calls and structured vision output
         run: python build_tools/check_local_model.py
       - name: Print local server diagnostics on failure
@@ -101,6 +101,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Frozen import check failed' }
           dist\GhostOS\GhostOS.exe --input-smoke-test
           if ($LASTEXITCODE -ne 0) { throw 'Frozen native mouse check failed' }
+          $env:QT_SCALE_FACTOR = '1.5'
+          dist\GhostOS\GhostOS.exe --input-smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen targeting at 150% scale failed' }
+          dist\GhostOS\GhostOS.exe --game-smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen practice game completion at 150% scale failed' }
+          Remove-Item Env:QT_SCALE_FACTOR
           dist\GhostOS\GhostOS.exe --browser-smoke-test
           if ($LASTEXITCODE -ne 0) { throw 'Frozen browser control check failed' }
           dist\GhostOS\GhostOS.exe --voice-smoke-test

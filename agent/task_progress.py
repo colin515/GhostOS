@@ -19,7 +19,7 @@ class TaskProgress:
     @classmethod
     def parse(cls, goal, game_mode=False):
         text = goal or ''
-        if game_mode or text.startswith('/action ') or re.search(r"\b(?:don't|do not|never|how do|how can|explain)\b", text, re.I):
+        if text.startswith('/action ') or re.search(r"\b(?:don't|do not|never|how do|how can|explain)\b", text, re.I):
             return cls(text, [text])
         quoted = [m.span() for m in re.finditer(r'"[^"\n]*"|(?<!\w)\'[^\'\n]*\'', text)]
         from agent.navigation import DOMAIN
@@ -54,7 +54,7 @@ class TaskProgress:
 
     @property
     def requires_work(self):
-        return bool(re.search(r'\b(?:play|watch|resume|pause|search|find|fill|type|click|select|download|upload|save|create|move|copy|paste|rename|delete|complete|finish|solve|answer|send|submit|turn|set|scroll|maximize|minimize|do)\b', self.current, re.I))
+        return bool(re.search(r'\b(?:play|watch|resume|pause|search|find|fill|type|click|select|download|upload|save|create|move|copy|paste|rename|delete|complete|finish|beat|win|solve|answer|send|submit|turn|set|scroll|maximize|minimize|do)\b', self.current, re.I))
 
     def complete(self, evidence):
         self.completed.append({'step': self.index + 1, 'goal': self.current, 'evidence': str(evidence)[:600]})

@@ -50,7 +50,7 @@ def release_inputs():
 
 
 class GamingEngine:
-    def __init__(self, stop):
+    def __init__(self, stop, target=None):
         import pydirectinput
         self.driver = pydirectinput
         self.driver.PAUSE = 0.01
@@ -58,7 +58,10 @@ class GamingEngine:
         self.stop, self.held = stop, set()
         import win32gui
         self.windows = win32gui
-        self.target = self.windows.GetForegroundWindow()
+        self.target = target or self.windows.GetForegroundWindow()
+        from agent.window_focus import is_agent_window
+        if not self.target or is_agent_window(self.target):
+            raise RuntimeError('Select an external game window before sending game input')
 
     def check_focus(self):
         if self.stop.is_set():
@@ -86,9 +89,58 @@ class GamingEngine:
             self.driver.keyUp(key)
             self.held.discard(key)
 
-    def click(self):
+    def click(self, button='left'):
         self.check_focus()
-        self.driver.click()
+        if button == 'left':
+            self.driver.click()
+        else:
+            self.driver.click(button=button)
+
+    def action(self, keys=(), buttons=(), dx=0, dy=0, duration=.2):
+        """Hold movement chords and mouse buttons together; always release on stop/focus loss."""
+        self.check_focus()
+        allowed = getattr(self.driver,'KEYBOARD_MAPPING',{})
+        keys = list(dict.fromkeys(key.lower() for key in keys))
+        if not isinstance(allowed,dict) or any(key not in allowed for key in keys):
+            raise ValueError('Unsupported game key name')
+        from agent.mouse import BUTTONS
+        pressed = []
+        try:
+            for key in keys:
+                self.check_focus()
+                self.driver.keyDown(key)
+                self.held.add(key)
+            for button in dict.fromkeys(buttons):
+                self.check_focus()
+                down,up,data = BUTTONS[button]
+                send_input([INPUT(type=0,mi=MOUSEINPUT(mouseData=data,dwFlags=down))])
+                pressed.append((up,data))
+            if dx or dy:
+                self.move(dx,dy)
+            remaining = duration
+            while remaining > 0:
+                interval = min(.02,remaining)
+                if self.stop.wait(interval):
+                    raise InterruptedError('Stopped')
+                self.check_focus()
+                remaining -= interval
+        finally:
+            errors = []
+            for up,data in reversed(pressed):
+                try:
+                    send_input([INPUT(type=0,mi=MOUSEINPUT(mouseData=data,dwFlags=up))])
+                except Exception as exc:
+                    errors.append(exc)
+            for key in reversed(keys):
+                if key in self.held:
+                    try:
+                        self.driver.keyUp(key)
+                    except Exception as exc:
+                        errors.append(exc)
+                    finally:
+                        self.held.discard(key)
+            if errors:
+                raise RuntimeError('Could not release all game input; emergency release is required') from errors[0]
 
     def close(self):
         for key in list(self.held):

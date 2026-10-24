@@ -1,4 +1,4 @@
-# Local model setup and multi-step control · 1.3.2
+# Local model setup and multi-step control · 1.4.0
 
 For an 8 GB GPU, update [Ollama for Windows](https://ollama.com/download/windows),
 then use the AI gear beside Send → **Check / upgrade local model and voice**.
@@ -48,8 +48,11 @@ See Ollama's [structured output](https://docs.ollama.com/capabilities/structured
 and [thinking controls](https://docs.ollama.com/capabilities/thinking) documentation.
 
 Automated tests use loopback model fixtures and local silent media. A separate
-release job also runs real local 0.8B weights through both planner protocols on
-CPU. These checks validate the adapter, permissions, decoder, playback and
-installer, not 4B reasoning accuracy on your GPU. The on-device verification and benchmark test
+release job also runs real local `qwen3.5:4b` weights through both planner protocols
+on CPU and asks the SDK planner to choose the named Play accessibility target in
+a synthetic image. Its model digest and results accompany the release. These
+checks validate those specific tasks, not general reasoning or speed on your GPU.
+The AI gear includes an inference timeout (90 seconds by default); raise it for
+slow CPU offload while testing. The on-device verification and benchmark test
 your actual Ollama installation. Arbitrary multi-step tasks still depend on
 model quality and observable evidence.

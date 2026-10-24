@@ -38,6 +38,7 @@ class Settings:
     web_host: str = '0.0.0.0'
     web_port: int = 8000
     game_mode: bool = False
+    game_profile: str = ''
     game_poll_hz: int = 10
     vision_interval: float = 3.0
     max_steps: int = 0
@@ -62,12 +63,16 @@ class Settings:
     voice_max_seconds: int = 45
     context_tokens: int = 8192
     prediction_tokens: int = 512
+    inference_timeout: int = 90
     browser_channel: str = 'msedge'
     cdp_url: str = ''
     data_dir: Path = field(default_factory=user_data_dir)
 
     def __post_init__(self):
         self.data_dir = Path(self.data_dir)
+        import re
+        if self.game_profile and not re.fullmatch(r'[A-Za-z0-9_-]+\.ya?ml',self.game_profile):
+            raise ValueError('Game profile must be a YAML filename from your game_profiles folder')
         if self.computer_use_engine not in ('windows_use', 'native'):
             raise ValueError('Unknown computer-use engine')
         if self.tier not in (1, 2, 3):
@@ -86,6 +91,8 @@ class Settings:
             raise ValueError('Invalid voice recording limits')
         if not (4096 <= self.context_tokens <= 32768 and 256 <= self.prediction_tokens <= 2048):
             raise ValueError('Invalid inference budget')
+        if not 30 <= self.inference_timeout <= 600:
+            raise ValueError('Model request timeout must be between 30 and 600 seconds')
         if self.speech_engine not in ('piper', 'sapi'):
             raise ValueError('Unknown speech engine')
         if self.browser_channel not in ('msedge', 'chrome'):

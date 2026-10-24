@@ -26,6 +26,7 @@ APPS = {
     'explorer': AppSpec('File Explorer', ('explorer.exe',), (r'%SystemRoot%\explorer.exe',)),
     'store': AppSpec('Microsoft Store', ('winstore.app.exe', 'winstore.desktop.exe'), uri='ms-windows-store://home'),
     'paint': AppSpec('Paint', ('mspaint.exe',), (r'%SystemRoot%\System32\mspaint.exe',)),
+    'steam': AppSpec('Steam', ('steam.exe',), (r'%ProgramFiles(x86)%\Steam\steam.exe',)),
 }
 ALIASES = {'google chrome': 'chrome', 'microsoft edge': 'edge', 'mozilla firefox': 'firefox',
            'file explorer': 'explorer', 'microsoft store': 'store', 'windows store': 'store', **{key: key for key in APPS}}
@@ -193,10 +194,14 @@ class WindowsApps:
         """Exact installed display names only; never interpolate model text into commands."""
         self._check()
         catalog = self.registered_apps()
+        from agent.installed_games import installed_games
+        from agent.app_resolution import resolve_installed
+        games = installed_games()
+        matched = resolve_installed(name,list(dict.fromkeys([*catalog,*games])))
+        if matched in games:
+            return games[matched].ensure(name,self.stop,strategy)
         normalized = name.strip().casefold()
-        matched = next((key for key in catalog if key.casefold() == normalized), None)
-        if matched is None:
-            raise FileNotFoundError(f'{name} is not an exact installed app name. Use app_list to discover it.')
+        normalized = matched.casefold()
         import win32gui
         from agent.window_focus import focus_window, is_agent_window
         def matching():
@@ -211,7 +216,7 @@ class WindowsApps:
         def focus():
             for hwnd in matching():
                 focus_window(hwnd, self.stop, maximize=True)
-                return json.dumps({'app':matched, 'verified':True, 'foreground':True, 'hwnd':hwnd})
+                return json.dumps({'app':matched, 'requested_app':name,'verified':True, 'foreground':True, 'hwnd':hwnd})
             return None
         result = focus()
         if result:

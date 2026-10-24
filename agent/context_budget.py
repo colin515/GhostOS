@@ -38,7 +38,7 @@ def pack_prompt(goal, history, observation, browser, feedback, screenshot_size, 
         data['history'] = clip(history,700)
     desktop = data['desktop']
     if isinstance(desktop,dict):
-        for key in ('controls','fallback_ui_tree','windows'):
+        for key in ('controls','fallback_ui_tree','windows','targets'):
             nodes = desktop.get(key)
             if isinstance(nodes,list):
                 while len(nodes) > 1 and size() > budget:
