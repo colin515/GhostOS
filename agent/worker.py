@@ -64,6 +64,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
         fast = Brain.fast_command(goal or '') if recipe is None else None
         autonomous = recipe is None and fast is None
         feedback, browser_state, inference_errors, stalls = '', '', 0, 0
+        game_menu_misses = 0
         last_frame_time = 0.0
         with uia_context():
             brain = None
@@ -356,6 +357,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                     feedback = str(result)[:4000]
                     emit('RESULT', message=feedback)
                     if settings.game_mode:
+                        changed_game_scene = False
                         until = min(deadline, time.monotonic() + settings.vision_interval)
                         while time.monotonic() < until:
                             if stop.wait(1 / settings.game_poll_hz):
@@ -367,11 +369,28 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                                 hit = vision.match(latest, path.name)
                                 if hit:
                                     detections[path.name] = hit
+                            if not changed_game_scene and vision.changed(frame,latest,threshold=8.0):
+                                changed_game_scene = True
                             if time.monotonic() - last_frame_time >= settings.screenshot_interval:
                                 emit('FRAME', image=latest.base64(), matches=detections, step=step)
                                 last_frame_time = time.monotonic()
                             if detections:
                                 feedback = (feedback + '\nTemplate observations: ' + str(detections))[-4000:]
+                        if action.kind == 'game_menu_click':
+                            if changed_game_scene:
+                                game_menu_misses = 0
+                                feedback += '\nGame scene changed after input; inspect the new menu and verify its actual state.'
+                            else:
+                                game_menu_misses += 1
+                                feedback += ('\nGAME_MENU_NO_CHANGE: The screenshot did not meaningfully change '
+                                             'after this targeted click. Do not repeat the same position. '
+                                             'Locate the actual labelled button in the newest client screenshot.')
+                                emit('RECOVERY',message='No verified game-menu transition after click')
+                                if game_menu_misses >= 3:
+                                    emit('STATUS',status='GAME_TARGET_UNVERIFIED',
+                                         message='Three menu clicks had no verifiable effect. Stopped guessing '
+                                                 'to avoid random input; inspect the game screenshot and controls.')
+                                    return
                     elif autonomous and action.kind in ('click', 'ui_click', 'hotkey', 'type_text', 'open_app', 'ensure_app'):
                         changed = False
                         until = min(deadline, time.monotonic() + 2)

@@ -27,6 +27,14 @@ class Controller:
         self.safety.events.put({'kind': 'EXECUTING', 'action': action.model_dump()}, timeout=0.2)
         kind, a = action.kind, action.args
         browser_frame = getattr(getattr(self, 'frame', None), 'source', 'desktop') == 'browser'
+        # A blind screen-click or camera movement is never a substitute for a
+        # coordinate-grounded game menu button.
+        menu_goal = (self.settings.game_mode and
+                     any(word in getattr(self,'original_goal','').lower()
+                         for word in ('new game','easy mode','main menu')))
+        if menu_goal and kind in ('click','drag','game_click','game_move','game_action'):
+            raise ValueError('Game menu navigation requires game_menu_click with x/y '
+                             'from the latest game-client screenshot; no blind click sent')
         if kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click') and not (
                 browser_frame and kind in ('click', 'mouse_move', 'scroll')):
             self.focus_guard.ensure_external()

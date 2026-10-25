@@ -160,7 +160,7 @@ class WebEngine:
             raise ValueError('Browser target disappeared; refresh browser_snapshot')
         actual = target.evaluate("""e => ({
             tag:e.tagName,href:e.getAttribute('href')||'',
-            id:e.id||'',name:e.getAttribute('aria-label')||'',
+            id:e.id||'',name:e.getAttribute('aria-label')||e.getAttribute('placeholder')||'',
             text:(e.innerText||e.value||'').trim().slice(0,90)
         })""")
         # Text on dynamic widgets can change. Link destinations must never
@@ -197,6 +197,10 @@ class WebEngine:
             raise ValueError('Browser element changed since observation')
         if not expected['href'] and actual['id'] != expected['id']:
             raise ValueError('Browser target moved; inspect new snapshot')
+        if not expected['href'] and expected.get('name'):
+            actual_name=(actual['name'] or actual['text'] or '').strip()
+            if actual_name != expected['name']:
+                raise ValueError('Browser form field changed since observation; refresh targets')
         return target,expected
 
     def first_video(self):
@@ -272,7 +276,8 @@ class WebEngine:
 
     def fill_target(self, target_id, value):
         target,metadata=self.target_locator(target_id)
-        if metadata['tag'] not in ('INPUT','TEXTAREA') and metadata.get('role') not in ('textbox','searchbox'):
+        if (metadata['tag'] not in ('INPUT','TEXTAREA')
+                and metadata.get('role') not in ('textbox','searchbox')):
             raise ValueError('The observed target is not a text field')
         target.fill(value)
         return self.snapshot(verified=True,filled_target_id=target_id,
