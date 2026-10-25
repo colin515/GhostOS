@@ -135,3 +135,19 @@ def test_reconnect_observes_visible_tab_not_cdp_list_order():
     youtube.evaluate = lambda script:'hidden'
     netflix.evaluate = lambda script:'visible'
     assert WebEngine.select_active_page([youtube,netflix]) is netflix
+
+
+
+def test_multistep_youtube_must_start_with_cdp_not_reuse_personal_tab():
+    controller=Controller.__new__(Controller)
+    controller.settings=Settings()
+    controller.original_goal='Open YouTube, search for lo-fi music and click the first video'
+    invoked=[]
+    controller.web=SimpleNamespace(page=None,native_fallback=False,
+        execute=lambda action:(invoked.append(action.kind) or '{"verified":true,"transport":"cdp"}'))
+    controller.native_browser=lambda:(_ for _ in ()).throw(
+        AssertionError('Multistep workflows may not silently switch to non-CDP personal tabs'))
+    assert 'cdp' in controller.browser_action(Action(kind='browser_open',args={
+        'url':'https://www.youtube.com/','backend':'auto'}))
+    assert invoked==['browser_open']
+    assert not controller.web.native_fallback

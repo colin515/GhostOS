@@ -279,6 +279,24 @@ class Controller:
         kind, a = action.kind, action.args
         navigation = kind in ('browser_open', 'browser_navigate', 'browser_new_tab')
         backend = a.get('backend', 'auto')
+        # Reusing a normal personal Chrome tab breaks browser DOM automation:
+        # Chrome's regular profile lacks an attached CDP endpoint. For a
+        # multi-step task that continues with searching, filling or clicking,
+        # always open a managed CDP tab from the outset.
+        if kind == 'browser_open' and backend == 'auto':
+            from agent.task_progress import TaskProgress
+            import re
+            original = getattr(self,'original_goal','')
+            steps = TaskProgress.parse(original).steps
+            needs_web_interaction = (
+                (len(steps)>1 and any(re.search(
+                    r'\b(?:search|click|select|fill|type|submit|watch|play|complete|answer|solve|find)\b',
+                    step,re.I) for step in steps[1:]))
+                or bool(re.search(
+                    r'\b(?:search|click|select|fill|type|submit|complete|answer|solve)\b',
+                    original,re.I)))
+            if needs_web_interaction:
+                backend='cdp'
         if kind == 'browser_media' and not self.web.page and not getattr(self.settings, 'cdp_url', ''):
             native = self.native_browser()
             if native.apps.windows(native.app):
