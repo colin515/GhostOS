@@ -143,7 +143,12 @@ class WebEngine:
             self.page = pages[a['tab_id']]
             self.page.bring_to_front()
         elif action.kind == 'browser_fill':
-            self.page.locator(a['selector']).fill(a['value'])
+            target = self.page.locator(a['selector'])
+            count = target.count()
+            if count != 1:
+                raise ValueError(f'Browser selector matched {count} fields; no text entered. '
+                                 'Inspect browser_snapshot and choose an exact unique selector.')
+            target.fill(a['value'])
         elif action.kind == 'browser_media':
             from agent.browser_media import cdp_media
             try:
@@ -154,7 +159,12 @@ class WebEngine:
         elif action.kind == 'browser_click':
             # A click may open a new tab. Track it instead of continuing on the old page.
             before = set(self.context.pages)
-            self.page.locator(a['selector']).click()
+            target = self.page.locator(a['selector'])
+            count = target.count()
+            if count != 1:
+                raise ValueError(f'Browser selector matched {count} elements; no click sent. '
+                                 'Inspect browser_snapshot and choose an exact unique selector.')
+            target.click()  # Playwright checks visibility, actionability and scroll.
             self.page.wait_for_timeout(150)
             opened = [page for page in self.context.pages if page not in before and not page.is_closed()]
             if opened:

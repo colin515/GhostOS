@@ -62,6 +62,108 @@ class UITree:
         rect = control.BoundingRectangle
         return ((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)
 
+
+    @staticmethod
+    def _same_control(a, b):
+        """Match UIA wrappers by runtime identity, not Python object identity."""
+        try:
+            ida = a.GetRuntimeId()
+            idb = b.GetRuntimeId()
+            if ida and idb:
+                return tuple(ida) == tuple(idb)
+        except (AttributeError, RuntimeError, ValueError):
+            pass
+        try:
+            ar, br = a.BoundingRectangle, b.BoundingRectangle
+            return (a.ControlTypeName == b.ControlTypeName and
+                    a.Name == b.Name and
+                    (ar.left, ar.top, ar.right, ar.bottom) ==
+                    (br.left, br.top, br.right, br.bottom))
+        except Exception:
+            return False
+
+    def _hit_matches(self, control, x, y):
+        """Check the UIA element under a *physical* point is the target/descendant."""
+        import uiautomation as auto
+        hit = auto.ControlFromPoint(int(x), int(y))
+        visited = set()
+        for _ in range(14):
+            if not hit:
+                return False
+            if self._same_control(hit, control):
+                return True
+            try:
+                runtime_id = tuple(hit.GetRuntimeId())
+            except Exception:
+                runtime_id = id(hit)
+            if runtime_id in visited:
+                return False
+            visited.add(runtime_id)
+            try:
+                hit = hit.GetParentControl()
+            except Exception:
+                return False
+        return False
+
+    def click_point(self, element_id):
+        """Find a physically hittable point on the *requested* live UIA control.
+
+        The bounding-box centre is only a candidate: labels, overlays, clipped
+        controls, DPI mistakes and neighboring elements can redirect its click.
+        Test the actual hit control before any OS input, and never click a
+        different control just because it is nearby.
+        """
+        from agent.targeting import StaleTargetError
+        control = self.controls.get(element_id)
+        cx, cy = self.center(element_id)  # validates current window and identity
+        if getattr(control, 'IsOffscreen', False):
+            raise StaleTargetError('UIA target is offscreen; scroll into view and recapture')
+        if getattr(control, 'IsEnabled', True) is False:
+            raise StaleTargetError('UIA target is disabled; no click sent')
+        rect = control.BoundingRectangle
+        left, top, right, bottom = rect.left, rect.top, rect.right, rect.bottom
+        if right - left < 3 or bottom - top < 3:
+            raise StaleTargetError('UIA target has no usable clickable area')
+        # Sample interior points. Use fixed fractions to avoid a child icon or an
+        # overlapping menu, and keep all positions strictly inside the bounds.
+        candidates = [(cx, cy)]
+        for fx, fy in ((0.35, 0.5), (0.65, 0.5), (0.5, 0.35),
+                       (0.5, 0.65), (0.25, 0.25), (0.75, 0.75)):
+            p = (int(left + (right - left) * fx),
+                 int(top + (bottom - top) * fy))
+            if p not in candidates:
+                candidates.append(p)
+        for x, y in candidates:
+            try:
+                if self._hit_matches(control, x, y):
+                    return x, y
+            except Exception as exc:
+                raise StaleTargetError('Could not hit-test the intended UIA control; '
+                                       'capture a fresh screenshot instead') from exc
+        raise StaleTargetError('Requested control is not physically clickable at its '
+                               'visible bounds (covered, clipped or inaccurate DPI). '
+                               'No mouse click was sent; refresh the UI tree.')
+
+    def find_id(self, label):
+        """Resolve an exact *unique* actionable name to the current UIA ID."""
+        normalize = lambda text: ' '.join(str(text).casefold().split())
+        wanted = normalize(label)
+        matches = []
+        kinds = {'ButtonControl','HyperlinkControl','CheckBoxControl','RadioButtonControl',
+                 'TabItemControl','MenuItemControl','ListItemControl','EditControl','ComboBoxControl'}
+        for idx, control in self.controls.items():
+            try:
+                if control.ControlTypeName in kinds and normalize(control.Name) == wanted:
+                    matches.append(idx)
+            except Exception:
+                continue
+        if len(matches) != 1:
+            raise ValueError('Target label is missing or ambiguous; use an exact current UIA ID')
+        return matches[0]
+
+    def find_click_point(self, label):
+        return self.click_point(self.find_id(label))
+
     def nearest_click_target(self, x, y):
         """Return a nearby actionable UIA control's exact physical centre.
 
@@ -108,21 +210,8 @@ class UITree:
         return idx, cx, cy
 
     def find(self, label):
-        """Only exact, unique actionable labels can replace a visual coordinate."""
-        normalize = lambda text: ' '.join(str(text).casefold().split())
-        wanted = normalize(label)
-        matches = []
-        kinds = {'ButtonControl','HyperlinkControl','CheckBoxControl','RadioButtonControl',
-                 'TabItemControl','MenuItemControl','ListItemControl','EditControl','ComboBoxControl'}
-        for idx, control in self.controls.items():
-            try:
-                if control.ControlTypeName in kinds and normalize(control.Name) == wanted:
-                    matches.append(idx)
-            except Exception:
-                continue
-        if len(matches) != 1:
-            raise ValueError('Target label is missing or ambiguous; use an exact current UIA ID')
-        return self.center(matches[0])
+        """Compatibility centre lookup; mouse clicks use find_click_point."""
+        return self.center(self.find_id(label))
 
     def focus(self):
         if self.window and self.window.Exists(0, 0):

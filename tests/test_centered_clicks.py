@@ -34,7 +34,8 @@ def live_tree(monkeypatch):
     tree.controls = {4: Control()}
     import types
     monkeypatch.setitem(sys.modules, 'uiautomation',
-                        types.SimpleNamespace(GetForegroundControl=lambda: tree.window))
+                        types.SimpleNamespace(GetForegroundControl=lambda: tree.window,
+                                              ControlFromPoint=lambda x,y: tree.controls[4]))
     return tree
 
 
@@ -71,4 +72,4 @@ def test_controller_centres_nearby_visual_click(monkeypatch):
     assert clicks == [(240, 100)]
     assert controller.safety.events.get()['kind'] == 'EXECUTING'
     target = controller.safety.events.get()
-    assert target['kind'] == 'TARGET' and target['source'] == 'accessibility-snap'
+    assert target['kind'] == 'TARGET' and target['source'] == 'accessibility-snap-hit-tested'

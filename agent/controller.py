@@ -64,14 +64,20 @@ class Controller:
                 focus_window(self.focus_guard.last, self.safety.stop)
             return 'Requested foreground window focus'
         if kind == 'ui_click':
-            from agent.targeting import verify_window
-            verify_window(self.frame,geometry=False)
-            x, y = self.tree.center(a['element_id'])
-            from agent.targeting import verify_live_center
+            from agent.targeting import verify_window, verify_live_center
+            verify_window(self.frame)
+            x, y = self.tree.click_point(a['element_id'])
+            sx, sy = self.frame.model_point(x, y)
+            self.safety.events.put({'kind':'TARGET','source':'uia-hit-tested',
+                                    'element_id':a['element_id'],'physical':[x,y],
+                                    'screenshot':[sx,sy],'window':self.frame.window},timeout=0.2)
+            self.safety.events.put({'kind':'FRAME',
+                                    'image':self.frame.annotated(sx,sy,'Verified UIA target').base64()},timeout=0.2)
             mouse = self.mouse_driver()
-            mouse.before_press = lambda: verify_live_center((x,y),self.tree.center(a['element_id']))
+            mouse.before_press = lambda: (verify_window(self.frame),
+                verify_live_center((x,y),self.tree.click_point(a['element_id'])))
             mouse.click(x, y)
-            return 'UIA control clicked'
+            return 'Mouse click dispatched at hit-tested UIA element; observe the result'
         if kind.startswith('game_'):
             if not self.settings.game_mode:
                 raise PermissionError('Enable Game Mode first')
@@ -113,19 +119,26 @@ class Controller:
                 match = finder(x, y) if callable(finder) else None
                 if match:
                     from agent.targeting import verify_patch
-                    snapped_id, x, y = match
+                    snapped_id, _, _ = match
+                    x, y = self.tree.click_point(snapped_id)
                     verify_patch(self.frame, self.vision.capture(), (x, y))
-                    source = 'accessibility-snap'
+                    source = 'accessibility-snap-hit-tested'
             sx,sy = self.frame.model_point(x,y)
             self.safety.events.put({'kind':'TARGET','source':source,'physical':[x,y], 'screenshot':[sx,sy],
                                     'window':self.frame.window,'label':a.get('target','')},timeout=0.2)
             self.safety.events.put({'kind':'FRAME','image':self.frame.annotated(sx,sy,a.get('target') or kind).base64()},timeout=0.2)
             mouse = self.mouse_driver()
-            if source in ('accessibility-label', 'accessibility-snap'):
+            if source in ('accessibility-label', 'accessibility-snap-hit-tested'):
                 from agent.targeting import verify_live_center
-                mouse.before_press = (lambda: (verify_window(self.frame),
-                    verify_live_center((x,y), self.tree.center(snapped_id) if snapped_id is not None
-                                       else self.tree.find(a['target']))))
+                def guard_named_click():
+                    verify_window(self.frame)
+                    if snapped_id is not None:
+                        current = self.tree.click_point(snapped_id)
+                    else:
+                        finder = getattr(self.tree, 'find_click_point', None)
+                        current = finder(a['target']) if callable(finder) else self.tree.find(a['target'])
+                    verify_live_center((x, y), current)
+                mouse.before_press = guard_named_click
             else:
                 mouse.before_press = lambda: verify_window(self.frame)
             if kind == 'mouse_move':
@@ -137,7 +150,7 @@ class Controller:
                 mouse.drag(x, y, to_x, to_y, a['button'], a['duration'])
             else:
                 mouse.click(x, y, a['button'], a['clicks'], a['duration'])
-            return f'{kind} verified at physical pixels {x}, {y}'
+            return f'{kind} dispatched at physical pixels {x}, {y}; observe the target before claiming success'
         if kind == 'scroll':
             self.mouse_driver().scroll(a['ticks'], a['horizontal'])
             return 'Wheel input sent'
@@ -219,28 +232,12 @@ class Controller:
             result = self.native_browser().open(a.get('url', ''), a.get('new_tab', kind == 'browser_new_tab'))
             self.web.native_fallback = True
             return result
-        if kind == 'browser_new_tab' and backend == 'auto' and not self.web.page and not getattr(self.settings, 'cdp_url', ''):
-            try:
-                native = self.native_browser()
-                if native.apps.windows(native.app):
-                    result = native.open(new_tab=True)
-                    self.web.native_fallback = True
-                    return result
-            except (InterruptedError, PermissionError):
-                raise
-            except Exception:
-                pass
-        # Respect an existing personal Chrome/Edge tab before creating a managed profile.
-        if kind == 'browser_open' and backend == 'auto' and not self.web.page and not a['new_tab'] and not getattr(self.settings, 'cdp_url', ''):
-            try:
-                reused = self.native_browser().open(a['url'], reuse_only=True)
-                if reused:
-                    self.web.native_fallback = True
-                    return reused
-            except (InterruptedError, PermissionError):
-                raise
-            except Exception:
-                pass  # UIA unavailable: CDP still provides deterministic URL navigation.
+        # Auto browser actions use CDP's DOM/Playwright path first, not a
+        # one-off native tab switch that permanently disables selector actions.
+        # Use backend='native' explicitly for a personal non-debug Chrome tab.
+        # Chrome's normal profile cannot expose DevTools on current versions.
+        # Auto uses its isolated, local CDP profile for deterministic DOM clicks;
+        # backend='native' explicitly opts into the existing personal window.
         if self.web.native_fallback and backend != 'cdp':
             if kind == 'browser_media':
                 from agent.browser_media import native_media

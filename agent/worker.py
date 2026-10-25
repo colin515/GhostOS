@@ -160,10 +160,15 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 controller.frame = frame
                 emit('FRAME', image=frame.base64(grid=not settings.game_mode), step=step)
                 try:
-                    ui = tree.snapshot() if not settings.game_mode and not getattr(getattr(controller, 'web', None), 'page', None) else []
+                    ui = tree.snapshot() if not settings.game_mode else []
                 except Exception as exc:
                     ui = []
                     emit('WARNING', message=f'Accessibility provider unavailable; using vision and keyboard navigation: {exc}')
+                if autonomous and getattr(controller.web, 'page', None) and not controller.web.native_fallback:
+                    try:
+                        browser_state = controller.web.snapshot()
+                    except Exception:
+                        pass  # A browser tab may have closed; use the fresh desktop frame.
                 if recipe is not None:
                     action = recipe.steps[step]
                 elif fast:

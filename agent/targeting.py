@@ -41,7 +41,8 @@ def resolve_point(frame, args, tree, vision, game_mode=False):
         raise StaleTargetError('Capture a screenshot before coordinate input')
     verify_window(frame,geometry=not bool(args.get('target')))
     if args.get('target'):
-        return tree.find(args['target']), 'accessibility-label'
+        finder = getattr(tree, 'find_click_point', None)
+        return (finder(args['target']) if callable(finder) else tree.find(args['target'])), 'accessibility-label'
     point = frame.point(args['x'],args['y'],args.get('coordinate_space','screenshot'))
     if not game_mode:
         verify_patch(frame,vision.capture(),point)
