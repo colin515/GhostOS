@@ -82,10 +82,9 @@ class BrowserSearch(Args):
     query: str = Field(min_length=1,max_length=300)
 
 
-class BrowserFillTarget(BrowserSearch):
+class BrowserFillTarget(Args):
     target_id: int = Field(ge=0,le=150)
     value: str = Field(max_length=16000)
-    query: str = Field(default='', max_length=300)
 
 
 class BrowserPress(Args):

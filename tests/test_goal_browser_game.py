@@ -121,3 +121,13 @@ def test_game_menu_action_requires_coordinates_but_game_click_does_not():
         Action(kind='game_menu_click',args={})
     action=Action(kind='game_menu_click',args={'x':250,'y':120})
     assert action.args['coordinate_space']=='screenshot'
+
+
+def test_original_request_does_not_reenable_browser_reopen_for_later_step():
+    tools=[SimpleNamespace(name='browser_open'),SimpleNamespace(name='browser_search')]
+    frame=Frame(Image.new('RGB',(640,400)),(1280,800),source='browser')
+    prompt=('Original complete request: Open YouTube and search for lo-fi music\n'
+            'Current step 2/3: search for lo-fi music\n'
+            'Earlier steps stay complete')
+    chosen=WindowsUseBrain.filter_navigation_tools(tools,prompt,frame)
+    assert [t.name for t in chosen]==['browser_search']

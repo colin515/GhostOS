@@ -38,6 +38,7 @@ foreground. If blocked, describe the blocker and select a safe alternative or wa
 Keep plans short (at most three items) and split long text into small typing actions.
 Never request elevation or try to interact with UAC or the secure desktop.
 Do not repeat submissions, shell scripts or deletion actions after uncertain outcomes.
+For game screenshots a 100-pixel grid is overlaid only in the observation; use the center of the visible menu control with those screenshot coordinates. Never guess controls outside the image.
 In game mode, visual menu buttons REQUIRE game_menu_click {x,y} using the exact center in the current game client screenshot; game_click alone clicks at the current cursor and MUST NOT be used for menu navigation. Observe the next screenshot between menu actions. For menu tasks such as new game -> easy -> start, never use relative game_move (camera only) or speculative multi-action chords. If no button can be clearly identified, wait or request a better screenshot instead of random clicks.
 In game mode avoid UIA and use short bounded input bursts; camera control uses relative deltas.
 Use game_action to hold movement keys and mouse buttons while moving the camera together.
@@ -106,7 +107,7 @@ class Brain:
         prompt = pack_prompt(goal,self.context.text(),{'foreground':frame.title,'targets':frame.tree_for_model(tree)},browser_state,feedback,frame.image.size,self.settings,len(SYSTEM))
         required = 'DECISION_ACTION_REQUIRED' in feedback
         messages = [{'role': 'system', 'content': SYSTEM},
-                    {'role': 'user', 'content': prompt, 'images': [frame.jpeg(grid=not self.settings.game_mode)]}]
+                    {'role': 'user', 'content': prompt, 'images': [frame.jpeg(grid=True)]}]
         for attempt in range(2):
             parts = []
             stream = self.client.chat(model=self.settings.model, messages=messages,
