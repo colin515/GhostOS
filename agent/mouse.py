@@ -36,7 +36,13 @@ class WinMouse:
         hwnd = win32gui.WindowFromPoint((x, y))
         root = win32gui.GetAncestor(hwnd, 2) if hwnd else None
         if is_agent_window(root or hwnd):
-            raise RuntimeError('Mouse target is covered by GhostOS controls; choose an unobscured target')
+            # The animated task-only cursor is explicitly click-through. A
+            # hit-test can still return the layered overlay on some Windows
+            # builds, so never mistake it for the interactive Stop ghost.
+            target = root or hwnd
+            extended = win32gui.GetWindowLong(target, -20)  # GWL_EXSTYLE
+            if not (extended & 0x00000020):  # WS_EX_TRANSPARENT
+                raise RuntimeError('Mouse target is covered by GhostOS controls; choose an unobscured target')
 
     def move(self, x, y):
         if not self.user.SetPhysicalCursorPos(x, y):
