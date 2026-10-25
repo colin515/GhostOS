@@ -99,11 +99,38 @@ class Controller:
             if self.game is None:
                 from agent.gaming_engine import GamingEngine
                 self.game = GamingEngine(self.safety.stop,target=self.frame.window if self.frame else None)
+            if kind == 'game_menu_click':
+                from agent.targeting import verify_window, StaleTargetError
+                if not self.frame or self.frame.source != 'game':
+                    raise StaleTargetError('No fresh game client screenshot; do not click the desktop')
+                verify_window(self.frame)
+                self.game.check_focus()
+                x,y=self.frame.point(a['x'],a['y'],a['coordinate_space'])
+                import win32gui
+                root=win32gui.GetAncestor(win32gui.WindowFromPoint((x,y)),2)
+                if root != self.game.target:
+                    raise StaleTargetError('Game menu point is outside the focused game window')
+                current=self.vision.capture_game()
+                if (current.window != self.frame.window or current.origin != self.frame.origin
+                        or current.original_size != self.frame.original_size):
+                    raise StaleTargetError('Game window moved or resized; recapture before clicking')
+                sx,sy=self.frame.model_point(x,y)
+                self.safety.events.put({'kind':'TARGET','source':'game-client',
+                    'physical':[x,y],'screenshot':[sx,sy],'window':self.game.target},timeout=.2)
+                mouse=self.mouse_driver()
+                mouse.before_press=lambda: (self.game.check_focus(),verify_window(self.frame))
+                mouse.click(x,y,button=a['button'])
+                return json.dumps({'input_sent':True,'verified':False,'source':'game-client',
+                                   'pixel':[sx,sy],'message':'Observe next game frame before continuing'})
             if kind == 'game_move':
+                if any(word in getattr(self,'original_goal','').lower() for word in ('new game','easy mode','main menu')):
+                    raise ValueError('Use game_menu_click for game menus, not camera movement')
                 self.game.move(a['dx'], a['dy'])
             elif kind == 'game_key':
                 self.game.key(a['key'], a['duration'])
             elif kind == 'game_click':
+                if any(word in getattr(self,'original_goal','').lower() for word in ('new game','easy mode','main menu')):
+                    raise ValueError('game_click has no target coordinates; use game_menu_click')
                 self.game.click(a['button'])
             elif kind == 'game_action':
                 self.game.action(**a)

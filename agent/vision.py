@@ -116,6 +116,28 @@ class Vision:
             image.thumbnail((self.width, self.width * 3), Image.Resampling.LANCZOS)
         return Frame(image, original,origin=origin,window=window,window_bounds=bounds,title=title)
 
+    def capture_game(self):
+        """Capture foreground game client pixels (exclude window border/title bar)."""
+        if os.name != 'nt':
+            return self.capture()
+        import win32gui
+        from agent.window_focus import is_agent_window
+        hwnd=win32gui.GetForegroundWindow()
+        if not hwnd or is_agent_window(hwnd) or win32gui.IsIconic(hwnd):
+            raise RuntimeError('Focus the game window before Game Mode capture')
+        rect=win32gui.GetClientRect(hwnd)
+        width,height=rect[2]-rect[0],rect[3]-rect[1]
+        if width<150 or height<120:
+            raise RuntimeError('Game client is too small or minimized')
+        x,y=win32gui.ClientToScreen(hwnd,(0,0))
+        image=ImageGrab.grab(bbox=(x,y,x+width,y+height),all_screens=True).convert('RGB')
+        original=image.size
+        if image.width>self.width:
+            image.thumbnail((self.width,self.width*3),Image.Resampling.LANCZOS)
+        return Frame(image,original,origin=(x,y),window=hwnd,
+                     window_bounds=tuple(win32gui.GetWindowRect(hwnd)),
+                     title=win32gui.GetWindowText(hwnd)[:200],source='game')
+
     @staticmethod
     def changed(before, after, threshold=2.0):
         from PIL import ImageChops, ImageStat

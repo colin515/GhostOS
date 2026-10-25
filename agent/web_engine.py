@@ -199,6 +199,32 @@ class WebEngine:
             raise ValueError('Browser target moved; inspect new snapshot')
         return target,expected
 
+    def first_video(self):
+        """Open the first actual visible YouTube video from results."""
+        from urllib.parse import urlsplit,parse_qs
+        if not self.page or self.native_fallback:
+            raise RuntimeError('A CDP page is required to select a video')
+        if (urlsplit(self.page.url).hostname or '').lower().removeprefix('www.') != 'youtube.com':
+            raise ValueError('This action is only for YouTube results')
+        selector='ytd-video-renderer a#video-title, ytd-rich-item-renderer a#video-title-link, ytd-grid-video-renderer a#video-title'
+        videos=self.page.locator(selector)
+        for index in range(min(videos.count(),100)):
+            candidate=videos.nth(index)
+            if not candidate.is_visible():
+                continue
+            href=candidate.get_attribute('href') or ''
+            if not href.startswith('/watch?') or 'v' not in parse_qs(urlsplit(href).query):
+                continue
+            before=set(self.context.pages)
+            candidate.click(timeout=6000)
+            self._track_new_tabs(before)
+            current=urlsplit(self.page.url)
+            if current.path!='/watch' or not parse_qs(current.query).get('v'):
+                raise RuntimeError('Video click dispatched but YouTube watch page not verified')
+            return self.snapshot(verified=True,action='browser_first_video',
+                                 video_url=self.page.url,clicked_index=index)
+        raise RuntimeError('No visible YouTube video results; inspect consent, sign-in or search results.')
+
     def search(self, query):
         """Fill the live search field in the current browser tab, without reopening it."""
         from urllib.parse import urlsplit,parse_qs
@@ -345,6 +371,8 @@ class WebEngine:
             self.page.bring_to_front()
         elif action.kind == 'browser_click_target':
             return self.click_target(a['target_id'])
+        elif action.kind == 'browser_first_video':
+            return self.first_video()
         elif action.kind == 'browser_search':
             return self.search(a['query'])
         elif action.kind == 'browser_fill_target':

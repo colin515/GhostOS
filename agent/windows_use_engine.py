@@ -122,7 +122,7 @@ class WindowsUseBrain:
         import re
         if getattr(frame,'source','desktop')!='browser':
             return tools
-        if re.search(r'\\b(?:open|navigate|visit|go to|new tab|switch tab)\\b',goal,re.I):
+        if re.search(r'\b(?:open|navigate|visit|go to|new tab|switch tab)\b',goal,re.I):
             return tools
         avoid={'browser_open','browser_navigate','browser_new_tab','ensure_app','open_app'}
         return [t for t in tools if t.name not in avoid]

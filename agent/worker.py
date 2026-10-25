@@ -167,7 +167,8 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                         emit('WARNING',message='CDP capture unavailable; desktop fallback: '+str(exc)[:120])
                         frame = vision.capture()
                 else:
-                    frame = vision.capture()
+                    frame = (vision.capture_game() if settings.game_mode and hasattr(vision,'capture_game')
+                             else vision.capture())
                 controller.frame = frame
                 emit('FRAME', image=frame.base64(grid=not settings.game_mode), step=step,
                      source=frame.source, screenshot_size=list(frame.image.size),
@@ -315,7 +316,8 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                         while time.monotonic() < until:
                             if stop.wait(1 / settings.game_poll_hz):
                                 safety.check()
-                            latest = vision.capture()
+                            latest = (vision.capture_game() if hasattr(vision,'capture_game')
+                                      else vision.capture())
                             detections = {}
                             for path in sorted(vision.templates.glob('*.png'))[:5]:
                                 hit = vision.match(latest, path.name)
