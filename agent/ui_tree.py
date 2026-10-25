@@ -62,6 +62,51 @@ class UITree:
         rect = control.BoundingRectangle
         return ((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)
 
+    def nearest_click_target(self, x, y):
+        """Return a nearby actionable UIA control's exact physical centre.
+
+        Vision may land just below small controls. Snap only when one live,
+        reasonably sized actionable control is unambiguous; never snap to
+        parent panes or guess at inaccessible game/canvas content.
+        """
+        if not self.window:
+            return None
+        import uiautomation as auto
+        try:
+            if self.window.NativeWindowHandle != auto.GetForegroundControl().NativeWindowHandle:
+                return None
+        except Exception:
+            return None
+        actionable = {'ButtonControl', 'HyperlinkControl', 'CheckBoxControl',
+                      'RadioButtonControl', 'TabItemControl', 'MenuItemControl',
+                      'ListItemControl', 'EditControl', 'ComboBoxControl'}
+        hits = []
+        for idx, control in self.controls.items():
+            try:
+                if control.ControlTypeName not in actionable or not control.Exists(0, 0):
+                    continue
+                rect = control.BoundingRectangle
+                width, height = rect.width(), rect.height()
+                if width < 6 or height < 6 or width > 700 or height > 180:
+                    continue
+                dx = max(rect.left - x, 0, x - rect.right)
+                dy = max(rect.top - y, 0, y - rect.bottom)
+                outside = (dx * dx + dy * dy) ** 0.5
+                tolerance = max(12, min(40, height * 0.8))
+                if outside > tolerance:
+                    continue
+                cx = (rect.left + rect.right) // 2
+                cy = (rect.top + rect.bottom) // 2
+                score = outside + 0.08 * ((cx - x) ** 2 + (cy - y) ** 2) ** 0.5
+                hits.append((score, idx, cx, cy))
+            except Exception:
+                continue
+        hits.sort()
+        if not hits or (len(hits) > 1 and hits[1][0] - hits[0][0] < 7):
+            return None  # Ambiguous: preserving the model's point is safer.
+        _, idx, cx, cy = hits[0]
+        return idx, cx, cy
+
     def find(self, label):
         """Only exact, unique actionable labels can replace a visual coordinate."""
         normalize = lambda text: ' '.join(str(text).casefold().split())
