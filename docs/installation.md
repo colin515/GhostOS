@@ -1,4 +1,4 @@
-# Installation · GhostOS 1.4.2
+# Installation · GhostOS 1.4.3
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ only. Internet is used to install packages and download models; subsequent model
 inference, screenshots and speech transcription stay local. Browser tasks use
 the network addresses requested by the user.
 
-Download **GhostOS_Installer_v1.4.2.exe** from the
+Download **GhostOS_Installer_v1.4.3.exe** from the
 [latest GitHub Release](https://github.com/colin515/GhostOS/releases/latest), run
 it, and open GhostOS from the Start Menu. Choose the `.exe` under **Assets**;
 the source ZIP is for developers. No Python installation is needed. The
@@ -125,7 +125,7 @@ border can start and close without moving the mouse, typing or calling Ollama.
 
 ## Updating or repairing an installation that will not open
 
-Run the newest `GhostOS_Installer_v1.4.2.exe` directly. Opening the old app or
+Run the newest `GhostOS_Installer_v1.4.3.exe` directly. Opening the old app or
 uninstalling it first is not required. Setup keeps the same AppId, reuses its
 previous installation folder and replaces application files. Windows Restart
 Manager closes GhostOS processes holding those files, including hidden ones.

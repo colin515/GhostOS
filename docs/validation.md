@@ -1,4 +1,4 @@
-# Validation · GhostOS 1.4.2
+# Validation · GhostOS 1.4.3
 
 Automated unit/regression coverage runs on Linux and Windows. The release pipeline
 also installs all Windows dependencies, freezes the app, checks frozen imports,
