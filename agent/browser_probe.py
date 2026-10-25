@@ -14,6 +14,7 @@ from agent.web_engine import WebEngine
 
 PAGE = b'''<!doctype html><title>GhostOS browser verification</title>
 <label for="q">Search</label><input id="q"><button id="go" onclick="document.querySelector('#result').textContent=document.querySelector('#q').value">Search</button><output id="result"></output>
+<a href="/watch?v=first" id="first-video">First visible video</a>
 <audio controls muted preload="auto" src="/silence.wav"></audio>'''
 
 
@@ -67,6 +68,19 @@ def run_probe():
             web = WebEngine(settings)
             base_url = f'http://127.0.0.1:{server.server_port}/'
             url = base_url + 'youtube'
+            web.execute(Action(kind='browser_navigate', args={'url':url}))
+            # Exercise the exact browser screenshot -> DOM target ID -> click path
+            # that failed in real-world YouTube. No Win32 screen coordinates.
+            viewport = web.capture_frame()
+            if viewport.source != 'browser' or viewport.origin != (0,0):
+                raise RuntimeError('CDP browser image is not in CSS viewport coordinates')
+            targets = json.loads(web.execute(Action(kind='browser_snapshot', args={})))['targets']
+            first = next((t for t in targets if '/watch?v=first' in t['href']), None)
+            if not first:
+                raise RuntimeError('Accessible first-video target was not exposed')
+            web.execute(Action(kind='browser_click_target',args={'target_id':first['target_id']}))
+            if '/watch?v=first' not in web.page.url:
+                raise RuntimeError('First video DOM-target click did not navigate to expected video')
             web.execute(Action(kind='browser_navigate', args={'url':url}))
             web.execute(Action(kind='browser_fill', args={'selector':'#q', 'value':'GhostOS CDP verified'}))
             web.execute(Action(kind='browser_click', args={'selector':'#go'}))
