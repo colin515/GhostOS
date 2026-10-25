@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.4.3
+# Architecture · GhostOS 1.4.4
 
 The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
 LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,

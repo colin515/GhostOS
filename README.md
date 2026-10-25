@@ -4,7 +4,7 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** version 1.4.3. Automated tests and Windows build, installation and
+**Status:** version 1.4.4. Automated tests and Windows build, installation and
 uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
 and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
@@ -12,7 +12,7 @@ and simple goals. No subscriptions, paid tiers or hosted inference service.
 ## Download and install
 
 1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
-2. Under **Assets**, download **GhostOS_Installer_v1.4.3.exe** and run it.
+2. Under **Assets**, download **GhostOS_Installer_v1.4.4.exe** and run it.
 3. Open GhostOS from the Start Menu. The first-run wizard guides you through
    installing Ollama and downloading a local vision model.
 
@@ -77,6 +77,28 @@ Explicit sequential requests keep separate pending steps. For example, “open t
 existing YouTube page and play its video” verifies navigation, then playback,
 before finishing. Playback reads state before acting so repeating Play cannot
 pause a video that is already playing. See [model setup and multi-step control](docs/model_setup.md).
+
+### Goal-driven browser workflows and windowed game menus (1.4.4)
+
+Browser automation now preserves completed navigation steps, instead of repeatedly
+opening the original URL. For multi-step YouTube requests it can search directly
+inside the already-open browser tab, verify the resulting search URL, and click
+the first *visible video result* only if the resulting watch page is verified.
+
+The agent also has explicit, permission-checked indexed DOM text-field fill and
+key-press actions for website forms. Normal browser actions continue to use
+the existing CDP, without confusing physical Windows pixel positions.
+
+Game Mode now captures the foreground game's CLIENT area rather than the whole
+window, including its title bar. For menus, the model is guided to use the
+`game_menu_click(x,y)` action; that click is moved to the exact pixel mapped
+from the latest game screenshot, checked for the correct foreground window,
+and followed by a fresh observation. After three ineffective menu clicks,
+GhostOS stops rather than continuing random input.
+
+See [v1.4.4 release notes](docs/release_1_4_4.md). Automated tests do not
+demonstrate that all custom games can be controlled: complex building objectives
+still require additional game-state understanding and on-device evaluation.
 
 ### Browser viewport grounding and livelier ghost animations (1.4.3)
 
@@ -278,11 +300,11 @@ and verification. Other goals use observe → decide → authorize → execute �
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe build_tools/build.py
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.4.3 build_tools/GhostOS_installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.4.4 build_tools/GhostOS_installer.iss
 ```
 
 A one-folder PyInstaller distribution contains `GhostOS.exe` and its runtime.
-Inno Setup wraps it as `GhostOS_Installer_v1.4.3.exe`, installs per user without
+Inno Setup wraps it as `GhostOS_Installer_v1.4.4.exe`, installs per user without
 admin rights, adds Start Menu shortcuts and provides an uninstaller. The app has
 an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
@@ -290,7 +312,7 @@ show a warning. This project does not promise otherwise.
 
 Update `VERSION` and push directly to `main`. The release workflow automatically
 builds and publishes that version, creating its matching tag at the exact build
-commit. Pushing a matching version tag (`v1.4.3`) or manually running **Windows
+commit. Pushing a matching version tag (`v1.4.4`) or manually running **Windows
 release** from `main` also works. Use a new version for every published release;
 published assets are not silently replaced.
 
