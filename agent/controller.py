@@ -26,7 +26,9 @@ class Controller:
         self.safety.check()  # Stop may have arrived at the approval boundary.
         self.safety.events.put({'kind': 'EXECUTING', 'action': action.model_dump()}, timeout=0.2)
         kind, a = action.kind, action.args
-        if kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click'):
+        browser_frame = getattr(self.frame, 'source', 'desktop') == 'browser'
+        if kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click') and not (
+                browser_frame and kind in ('click', 'mouse_move', 'scroll')):
             self.focus_guard.ensure_external()
         if kind == 'app_list':
             from agent.windows_apps import WindowsApps
@@ -64,6 +66,8 @@ class Controller:
                 focus_window(self.focus_guard.last, self.safety.stop)
             return 'Requested foreground window focus'
         if kind == 'ui_click':
+            if browser_frame:
+                raise ValueError('UIA IDs are not valid in a browser screenshot. Use browser_click_target.')
             from agent.targeting import verify_window, verify_live_center
             verify_window(self.frame)
             x, y = self.tree.click_point(a['element_id'])
@@ -105,6 +109,20 @@ class Controller:
                 self.game.action(**a)
             return 'Game input sent'
         if kind in ('click', 'mouse_move', 'drag'):
+            if browser_frame:
+                if kind == 'drag':
+                    raise ValueError('Browser drag needs a DOM action; native desktop coordinates are disabled')
+                if a.get('target'):
+                    raise ValueError('Do not use Windows UIA labels for browser clicks; use browser_click_target.')
+                x, y = self.frame.point(a['x'], a['y'], a.get('coordinate_space','screenshot'))
+                sx, sy = self.frame.model_point(x,y)
+                self.safety.events.put({'kind':'TARGET','source':'cdp-viewport',
+                                        'screenshot':[sx,sy], 'viewport_css':[x,y],
+                                        'label':kind},timeout=0.2)
+                if kind == 'click':
+                    return self.web.click_at(x,y,button=a['button'],clicks=a['clicks'])
+                self.web.page.mouse.move(x,y)
+                return json.dumps({'transport':'cdp','mouse_moved':[x,y]})
             from agent.targeting import resolve_point, verify_window, verify_patch
             if kind in ('drag','mouse_move'):
                 verify_window(self.frame)
@@ -152,6 +170,10 @@ class Controller:
                 mouse.click(x, y, a['button'], a['clicks'], a['duration'])
             return f'{kind} dispatched at physical pixels {x}, {y}; observe the target before claiming success'
         if kind == 'scroll':
+            if browser_frame:
+                self.web.page.mouse.wheel(-120*a['ticks'] if a['horizontal'] else 0,
+                                          0 if a['horizontal'] else -120*a['ticks'])
+                return 'CDP browser viewport scroll dispatched'
             self.mouse_driver().scroll(a['ticks'], a['horizontal'])
             return 'Wheel input sent'
         import pyautogui as pg

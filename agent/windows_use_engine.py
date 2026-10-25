@@ -74,6 +74,9 @@ class WindowsUseBrain:
         self.tools.append(Tool(name='finish', description='Finish only when the whole original goal is verified.', model=Finish))
 
     def observation(self, frame):
+        if getattr(frame, 'source', 'desktop') == 'browser':
+            return {'engine':'Playwright/CDP','foreground':'Managed browser viewport',
+                    'controls':[], 'windows':[]}
         if self.desktop is None:
             return {'warning': 'Windows-Use UIA is only available on Windows'}
         state = self.desktop.get_state()
@@ -112,13 +115,15 @@ class WindowsUseBrain:
                 emit('WARNING', message='Windows-Use accessibility provider unavailable; using the current screenshot and fallback UIA.')
         nudge = self.loop_guard.check() or ''
         # UIA click IDs always belong to GhostOS's current live tree, never SDK indices.
-        desktop['targets'] = frame.tree_for_model(tree)
+        desktop['targets'] = (frame.tree_for_model(tree) if getattr(frame, 'source', 'desktop') != 'browser' else [])
         from agent.context_budget import pack_prompt
         tool_chars = len(json.dumps([tool.json_schema for tool in self.tools])) if self.tools_supported else 0
         prompt = pack_prompt(goal,self.context.text(),desktop,browser_state,feedback + '\n' + nudge,
                              frame.image.size,self.settings,len(SYSTEM),tool_chars)
         messages = [SystemMessage(content=SYSTEM + '\nWindows-Use supplies the window inventory and cached accessibility controls. '
                     'Their x/y coordinates are already resized screenshot pixels, as are all mouse tool arguments. '
+                    'For the managed browser use browser_click_target IDs or browser_click selectors, '
+                    'not desktop UIA. Its screenshot is a CSS viewport clicked through CDP. '
                     'Use app_list for installed apps and focus_window with a listed handle for background windows. '
                     'Use direct navigation before visual guessing. Tool finish requires full-goal evidence. '
                     'Use short public summaries; never output private reasoning.'),

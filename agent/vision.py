@@ -66,7 +66,7 @@ class Frame:
         draw.line((x-15,y,x+15,y),fill='#ffd84d',width=2)
         draw.line((x,y-15,x,y+15),fill='#ffd84d',width=2)
         draw.text((max(0,x+12),max(0,y-20)),label[:80],fill='#ffd84d')
-        return Frame(copy,self.original_size,origin=self.origin,window=self.window,window_bounds=self.window_bounds,title=self.title)
+        return Frame(copy,self.original_size,origin=self.origin,window=self.window,window_bounds=self.window_bounds,title=self.title,source=self.source)
 
     def jpeg(self, grid=False):
         if grid in self._jpeg_cache:

@@ -156,11 +156,22 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                             feedback = 'DECISION_ACTION_REQUIRED. Playback is not verified: ' + str(exc)[:700]
                             emit('RECOVERY', message='Could not verify playback directly; inspecting the player controls instead.')
                         continue
-                frame = vision.capture()
+                active_web = getattr(controller, 'web', None)
+                browser_active = (not settings.game_mode and autonomous
+                                  and getattr(active_web, 'page', None) is not None
+                                  and not getattr(active_web, 'native_fallback', False))
+                if browser_active:
+                    try:
+                        frame = active_web.capture_frame()
+                    except Exception as exc:
+                        emit('WARNING',message='CDP capture unavailable; desktop fallback: '+str(exc)[:120])
+                        frame = vision.capture()
+                else:
+                    frame = vision.capture()
                 controller.frame = frame
                 emit('FRAME', image=frame.base64(grid=not settings.game_mode), step=step)
                 try:
-                    ui = tree.snapshot() if not settings.game_mode else []
+                    ui = tree.snapshot() if not settings.game_mode and frame.source != 'browser' else []
                 except Exception as exc:
                     ui = []
                     emit('WARNING', message=f'Accessibility provider unavailable; using vision and keyboard navigation: {exc}')
@@ -319,7 +330,14 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                         while time.monotonic() < until:
                             if stop.wait(0.2):
                                 safety.check()
-                            if vision.changed(frame, vision.capture()):
+                            if getattr(frame, 'source', 'desktop') == 'browser':
+                                try:
+                                    current = active_web.capture_frame()
+                                except Exception:
+                                    current = None
+                            else:
+                                current = vision.capture()
+                            if current is not None and vision.changed(frame, current):
                                 changed = True
                                 break
                         if not changed:

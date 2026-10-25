@@ -13,8 +13,6 @@ class WebEngine:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.playwright = self.browser = self.context = self.page = None
-        self._targets.clear()
-        self._targets_page = None
         self.attached = False
         self.native_fallback = False
         self._targets = {}
@@ -297,3 +295,5 @@ class WebEngine:
         if self.playwright:
             self.playwright.stop()
         self.playwright = self.browser = self.context = self.page = None
+        self._targets.clear()
+        self._targets_page = None
