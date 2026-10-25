@@ -30,20 +30,33 @@ class UITree:
         output = []
         if not self.window:
             return output
-        # UIA APIs can block in broken providers; worker-level timeout bounds the entire run.
+        # The first 120 raw nodes are often window chrome, panes and labels;
+        # previously this exhausted the budget before the actual buttons
+        # (especially inside Chrome's deep document accessibility tree).
+        # Keep bounded traversal but assign stable IDs ONLY to actionable items.
+        kinds = {'ButtonControl', 'HyperlinkControl', 'CheckBoxControl',
+                 'RadioButtonControl', 'TabItemControl', 'MenuItemControl',
+                 'ListItemControl', 'EditControl', 'ComboBoxControl',
+                 'SplitButtonControl', 'SpinnerControl', 'TreeItemControl'}
+        visited = 0
         def visit(control, depth):
-            if len(output) >= 120 or depth > 5:
+            nonlocal visited
+            if len(output) >= 120 or depth > 12 or visited >= 700:
                 return
+            visited += 1
             try:
+                kind = control.ControlTypeName
                 rect = control.BoundingRectangle
-                if not control.IsOffscreen and rect.width() > 0 and rect.height() > 0:
+                if (kind in kinds and not control.IsOffscreen
+                        and rect.width() >= 3 and rect.height() >= 3):
                     idx = len(output)
+                    name = str(control.Name or '')[:120]
                     self.controls[idx] = control
-                    self.identities[idx] = (control.Name,control.ControlTypeName)
-                    output.append(dict(id=idx, name=control.Name[:120], type=control.ControlTypeName,
+                    self.identities[idx] = (control.Name, kind)
+                    output.append(dict(id=idx, name=name, type=kind,
                                        bounds=[rect.left, rect.top, rect.right, rect.bottom]))
-                if depth < 5:
-                    for child in control.GetChildren()[:40]:
+                if depth < 12:
+                    for child in control.GetChildren()[:80]:
                         visit(child, depth + 1)
             except Exception:
                 return
