@@ -100,6 +100,22 @@ class WindowsUseBrain:
                 'windows': [{'title': w.name[:160], 'handle':w.handle, 'status':w.status.value}
                             for w in state.windows[:25]], 'controls':nodes}
 
+    @staticmethod
+    def available_tools(tools, frame, browser_state):
+        """Prefer DOM actions over inaccurate vision pixels in managed browsers."""
+        if getattr(frame, 'source', 'desktop') != 'browser':
+            return tools
+        try:
+            state = json.loads(browser_state) if isinstance(browser_state,str) else browser_state
+        except (TypeError, ValueError):
+            state = {}
+        if not isinstance(state, dict) or not state.get('targets'):
+            return tools
+        # Keep an escape route for unusual canvas pages with no DOM targets.
+        # With visible DOM links/buttons, hide native UIA/coordinate actions.
+        avoid = {'click','ui_click','drag','mouse_move','template_click'}
+        return [tool for tool in tools if tool.name not in avoid]
+
     def next(self, goal, frame, tree, browser_state='', feedback='', emit=None):
         from ghostos_vendor.windows_use.messages import SystemMessage, ImageMessage
         from ghostos_vendor.windows_use.providers.events import LLMEventType
@@ -117,7 +133,8 @@ class WindowsUseBrain:
         # UIA click IDs always belong to GhostOS's current live tree, never SDK indices.
         desktop['targets'] = (frame.tree_for_model(tree) if getattr(frame, 'source', 'desktop') != 'browser' else [])
         from agent.context_budget import pack_prompt
-        tool_chars = len(json.dumps([tool.json_schema for tool in self.tools])) if self.tools_supported else 0
+        offered_tools = self.available_tools(self.tools, frame, browser_state)
+        tool_chars = len(json.dumps([tool.json_schema for tool in offered_tools])) if self.tools_supported else 0
         prompt = pack_prompt(goal,self.context.text(),desktop,browser_state,feedback + '\n' + nudge,
                              frame.image.size,self.settings,len(SYSTEM),tool_chars)
         messages = [SystemMessage(content=SYSTEM + '\nWindows-Use supplies the window inventory and cached accessibility controls. '
@@ -131,7 +148,7 @@ class WindowsUseBrain:
         if emit:
             emit('INFERENCE', message='Windows-Use is inspecting windows and choosing an action locally')
         if self.tools_supported:
-            tools = [tool for tool in self.tools if tool.name != 'finish' or 'DECISION_ACTION_REQUIRED' not in feedback]
+            tools = [tool for tool in offered_tools if tool.name != 'finish' or 'DECISION_ACTION_REQUIRED' not in feedback]
             response = self.llm.invoke(messages, tools=tools)
             if response.type != LLMEventType.TOOL_CALL or not response.tool_call:
                 required = 'DECISION_ACTION_REQUIRED' in feedback
