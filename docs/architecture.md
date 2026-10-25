@@ -1,4 +1,4 @@
-# Architecture · GhostOS 1.4.0
+# Architecture · GhostOS 1.4.1
 
 The non-elevated parent owns Qt, the approval broker, event journal, speech queue,
 LAN dashboard and emergency hotkeys. A spawned worker owns Ollama, UIA,
@@ -13,8 +13,9 @@ After worker cleanup, `FINISHED` restores and activates the chat once, focuses
 the composer and makes typed/voice follow-up available. It does not start the
 microphone automatically. A newer active run or application shutdown prevents
 restoration. The tray's explicit **Show GhostOS** action also restores it. While a task is active,
-even that window is shown without activation. A compact non-activating task
-panel provides Stop, voice activity and optional browser help. Approval windows
+even that window is shown without activation. An animated non-activating ghost offers a clickable Stop action, task-state animations,
+voice activity and optional browser help. A click-through animated pointer overlay
+follows task mouse activity without creating a second native Windows pointer. Approval windows
 also use `WindowDoesNotAcceptFocus` and `WA_ShowWithoutActivating` and never
 call `exec()`, `raise_()` or `activateWindow()`.
 

@@ -4,7 +4,7 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** version 1.4.0. Automated tests and Windows build, installation and
+**Status:** version 1.4.1. Automated tests and Windows build, installation and
 uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
 and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
@@ -12,7 +12,7 @@ and simple goals. No subscriptions, paid tiers or hosted inference service.
 ## Download and install
 
 1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
-2. Under **Assets**, download **GhostOS_Installer_v1.4.0.exe** and run it.
+2. Under **Assets**, download **GhostOS_Installer_v1.4.1.exe** and run it.
 3. Open GhostOS from the Start Menu. The first-run wizard guides you through
    installing Ollama and downloading a local vision model.
 
@@ -78,11 +78,28 @@ existing YouTube page and play its video” verifies navigation, then playback,
 before finishing. Playback reads state before acting so repeating Play cannot
 pause a video that is already playing. See [model setup and multi-step control](docs/model_setup.md).
 
+### Precision control and animated ghost (1.4.1)
+
+GhostOS prefers live Windows accessibility controls when a model predicts a click near
+an actionable button. It selects the real control centre, verifies the target has
+not moved and falls back to visual coordinates when no unique accessible control
+is available. Cursor motion uses physical Windows coordinates to minimise DPI
+scaling offsets. Correct target selection still requires real Windows testing,
+particularly in canvas-based apps and games.
+
+During tasks, a small blinking ghost replaces the rectangular bottom-right Stop
+panel and changes animation state when thinking, moving, working or recovering.
+Click the ghost to stop, or use Ctrl+Alt+K / Ctrl+Alt+Esc. A click-through animated
+GhostOS pointer highlights agent mouse activity without changing the Windows
+cursor theme. Windows still uses one physical mouse pointer for clicks.
+
+See [v1.4.1 release notes](docs/release_1_4_1.md) for details and limitations.
+
 ### Desktop and phone dashboard
 
 Describe a goal and press **Send**. The chat hides while GhostOS works and
 automatically reopens after the task finishes or stops, ready for another typed
-or spoken command. A non-activating panel provides Stop and approvals during
+or spoken command. An animated non-activating ghost provides Stop while approvals remain available during
 execution; the tray can also show the chat on request. The
 trajectory shows public progress, current screenshots and cursor debug events.
 
@@ -223,11 +240,11 @@ and verification. Other goals use observe → decide → authorize → execute �
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe build_tools/build.py
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.4.0 build_tools/GhostOS_installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.4.1 build_tools/GhostOS_installer.iss
 ```
 
 A one-folder PyInstaller distribution contains `GhostOS.exe` and its runtime.
-Inno Setup wraps it as `GhostOS_Installer_v1.4.0.exe`, installs per user without
+Inno Setup wraps it as `GhostOS_Installer_v1.4.1.exe`, installs per user without
 admin rights, adds Start Menu shortcuts and provides an uninstaller. The app has
 an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
@@ -235,7 +252,7 @@ show a warning. This project does not promise otherwise.
 
 Update `VERSION` and push directly to `main`. The release workflow automatically
 builds and publishes that version, creating its matching tag at the exact build
-commit. Pushing a matching version tag (`v1.4.0`) or manually running **Windows
+commit. Pushing a matching version tag (`v1.4.1`) or manually running **Windows
 release** from `main` also works. Use a new version for every published release;
 published assets are not silently replaced.
 

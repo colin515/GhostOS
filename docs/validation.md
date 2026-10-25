@@ -1,4 +1,4 @@
-# Validation · GhostOS 1.4.0
+# Validation · GhostOS 1.4.1
 
 Automated unit/regression coverage runs on Linux and Windows. The release pipeline
 also installs all Windows dependencies, freezes the app, checks frozen imports,
@@ -26,6 +26,7 @@ Regression coverage includes:
 
 - the user-contributed UI tree, browser probe, indicator, speech, diagnostics,
   gaming-engine and directory-watcher tests merged in PR #3;
+- nearby live actionable-control centring, ambiguous-target fallback and click-through ghost pointer tests;
 - physical coordinate mapping at 100/125/150/200% scale, negative screen origins,
   changed target patches, live accessibility labels and cursor drift before press;
 - canonical ChatGPT destinations, installed Steam libraries, conservative typo
