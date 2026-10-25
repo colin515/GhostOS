@@ -170,6 +170,10 @@ class WebEngine:
             raise ValueError('Browser target changed identity; refresh browser_snapshot')
         if not expected['href'] and actual['id'] != expected['id']:
             raise ValueError('Browser target ID changed; refresh browser_snapshot')
+        if not expected['href'] and expected.get('name'):
+            actual_name = (actual['name'] or actual['text'] or '').strip()
+            if actual_name != expected['name']:
+                raise ValueError('Browser target label changed; refresh browser_snapshot')
         before = set(self.context.pages)
         target.click()  # real Playwright actionability/scroll/overlay checks
         self._track_new_tabs(before)
@@ -195,7 +199,7 @@ class WebEngine:
             discovered = self.page.locator(self.ACTIONABLE).evaluate_all("""els => {
                 const w=innerWidth,h=innerHeight;
                 const targets=[];
-                for(let i=0;i<els.length&&targets.length<100;i++){
+                for(let i=0;i<els.length&&targets.length<170;i++){
                     const e=els[i],r=e.getBoundingClientRect(),st=getComputedStyle(e);
                     if(r.width<4||r.height<4||st.visibility==='hidden'||st.display==='none')continue;
                     const x=Math.max(0,Math.min(w-1,r.left+r.width/2));
@@ -206,7 +210,14 @@ class WebEngine:
                       id:e.id||'',name,
                       x:Math.round(x),y:Math.round(y)});
                 }
-                return {viewport:{width:w,height:h},targets};
+                // Give the model actual video links first, then explicit controls.
+                // Keep the underlying dom_index so clicks remain identity-checked.
+                targets.sort((a,b)=>{
+                    const p=e=>e.href.includes('/watch?')||e.href.includes('/shorts/')?0:
+                                   e.tag==='BUTTON'||e.tag==='INPUT'?1:2;
+                    return p(a)-p(b);
+                });
+                return {viewport:{width:w,height:h},targets:targets.slice(0,100)};
             }""")
             self._targets = {idx:item for idx,item in enumerate(discovered['targets'])}
             self._targets_page = self.page
