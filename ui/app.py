@@ -13,30 +13,41 @@ from ui.widgets import GhostLogo, AudioVisualizer, ghost_icon
 from ui.tasks import VoiceTask
 
 STYLE = '''
-QWidget { background:#141416; color:#f3f3f5; font-family:"Segoe UI Variable", "Segoe UI"; font-size:14px; }
-QLabel#brand {font-size:24px; font-weight:650; letter-spacing:-1px;}
-QLabel#hero {font-size:32px; font-weight:600; color:#f4f4f6; padding:8px 0;}
-QLabel#subtitle {color:#96969f; padding-bottom:12px;}
-QLabel#eyebrow {color:#92929c; font-size:11px; font-weight:600; letter-spacing:2px; padding:8px 0;}
-QLabel#status {color:#b4d4c1; background:#202824; border:1px solid #303d35; border-radius:12px; padding:7px 14px;}
-QLabel#preview {background:#202023; color:#9898a2; border:1px solid #303035; border-radius:14px; padding:8px;}
-QFrame#composer {background:#222225; border:1px solid #414149; border-radius:22px;}
-QPlainTextEdit,QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox {background:#222225; border:1px solid #39393e; border-radius:10px; padding:10px; selection-background-color:#55517c;}
-QTextEdit {background:#202023; border:1px solid #39393e; border-radius:12px; padding:10px;}
+QWidget { background:#10121b; color:#eceef9; font-family:"Segoe UI Variable","Segoe UI"; font-size:14px; }
+QMainWindow { background:#10121b; }
+QLabel#brand {font-size:25px; font-weight:700; color:#f5f5fc; letter-spacing:-1px;}
+QLabel#hero {font-size:34px; font-weight:650; color:#fcfcff; padding:10px 0;}
+QLabel#subtitle {color:#9ba4b8; padding-bottom:12px;}
+QLabel#eyebrow {color:#a29fcb; font-size:11px; font-weight:700; letter-spacing:2px; padding:8px 0;}
+QLabel#status {color:#9df0c8; background:#172e2d; border:1px solid #2c5145; border-radius:12px; padding:8px 15px; font-weight:600;}
+QLabel#preview {background:#181d2b; color:#9daac0; border:1px solid #303b51; border-radius:15px; padding:9px;}
+QFrame#composer {background:#1b2030; border:1px solid #455278; border-radius:23px;}
+QFrame#composer:focus-within {border-color:#9388ea;}
+QPlainTextEdit,QLineEdit,QComboBox,QSpinBox,QDoubleSpinBox {background:#1b2030; border:1px solid #354057; border-radius:12px; padding:11px; selection-background-color:#6760a6;}
+QPlainTextEdit:focus,QLineEdit:focus {border:1px solid #7771bf;}
+QTextEdit {background:#1b2030; border:1px solid #343d56; border-radius:12px; padding:10px;}
 QPlainTextEdit#chat {background:transparent; border:0; padding:10px 0; font-size:15px;}
 QPlainTextEdit#prompt {border:0; background:transparent; padding:8px; font-size:16px;}
-QPlainTextEdit#activityLog {background:transparent; border:0; color:#b4b4be; font-size:12px; padding:4px 0;}
-QPushButton {background:#2c2c30; border:1px solid #414148; border-radius:12px; padding:10px 15px;}
-QPushButton:hover {background:#3b3b42;} QPushButton:disabled {color:#73737e; border-color:#303036;}
-QPushButton#send {background:#eeedf8; color:#22212c; border-color:#eeedf8; font-weight:650;}
-QPushButton#send:hover {background:#d7d4ee;} QPushButton#send:disabled {background:#45434e; color:#96939e; border-color:#45434e;}
+QPlainTextEdit#activityLog {background:transparent; border:0; color:#bac2d7; font-size:12px; padding:4px 0;}
+QPushButton {background:#272d40; color:#f0f1fa; border:1px solid #3d4860; border-radius:12px; padding:10px 15px; font-weight:500;}
+QPushButton:hover {background:#323b55; border-color:#6675a2;}
+QPushButton:pressed {background:#22263a;}
+QPushButton:disabled {color:#68748f; border-color:#273046; background:#1c2231;}
+QPushButton#send {background:qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #c4bafa,stop:1 #8ccff1); color:#141a2c; border-color:#b4bbf5; font-weight:750;}
+QPushButton#send:hover {background:#dad6ff; border-color:#ece8ff;}
+QPushButton#send:disabled {background:#393d54; color:#929ab4; border-color:#414962;}
 QPushButton#settings {font-family:"Segoe UI Symbol"; font-size:21px; padding:5px;}
-QPushButton#stop {background:#322326; color:#ffb3bd; border-color:#533039;}
-QSplitter::handle {background:#2b2b30; width:1px;} QCheckBox {padding:4px; color:#b9b9c2;}
-QCheckBox::indicator {width:16px; height:16px; border:1px solid #63636e; border-radius:4px; background:#26262b;}
-QCheckBox::indicator:checked {background:#bdb7ec; border-color:#d5d0f5;}
-QScrollArea {border:0;} QToolTip {background:#303035; color:#fff; border:1px solid #505057;}
-QLabel a {color:#b9b4ff;}
+QPushButton#stop {background:#392430; color:#ffc2cd; border-color:#653849;}
+QPushButton#stop:hover {background:#613044; border-color:#98506b;}
+QSplitter::handle {background:#273148; width:1px;}
+QCheckBox {padding:4px; color:#c1c9df;}
+QCheckBox::indicator {width:16px; height:16px; border:1px solid #687593; border-radius:5px; background:#242c3e;}
+QCheckBox::indicator:checked {background:#aaa4f5; border-color:#e0dcff;}
+QScrollArea {border:0;}
+QScrollBar:vertical {background:#151b29; width:9px; margin:2px;}
+QScrollBar::handle:vertical {background:#3b4860; border-radius:4px; min-height:26px;}
+QToolTip {background:#252d42; color:#f8f8ff; border:1px solid #586484; padding:7px;}
+QLabel a {color:#b2a8ff;}
 '''
 
 class MainWindow(QMainWindow):

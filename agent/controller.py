@@ -26,7 +26,7 @@ class Controller:
         self.safety.check()  # Stop may have arrived at the approval boundary.
         self.safety.events.put({'kind': 'EXECUTING', 'action': action.model_dump()}, timeout=0.2)
         kind, a = action.kind, action.args
-        browser_frame = getattr(self.frame, 'source', 'desktop') == 'browser'
+        browser_frame = getattr(getattr(self, 'frame', None), 'source', 'desktop') == 'browser'
         if kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click') and not (
                 browser_frame and kind in ('click', 'mouse_move', 'scroll')):
             self.focus_guard.ensure_external()

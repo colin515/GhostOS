@@ -5,7 +5,7 @@ from PyQt6.QtGui import QColor, QPainter, QPainterPath, QLinearGradient, QIcon, 
 from PyQt6.QtWidgets import QWidget
 
 
-def draw_ghost(painter, rect, blink=False):
+def draw_ghost(painter, rect, blink=False, expression='neutral'):
     painter.save()
     painter.translate(rect.x(), rect.y())
     painter.scale(rect.width() / 64, rect.height() / 64)
@@ -34,8 +34,37 @@ def draw_ghost(painter, rect, blink=False):
         painter.drawLine(22, 32, 28, 32)
         painter.drawLine(36, 32, 42, 32)
     else:
-        painter.drawRoundedRect(QRectF(22, 27, 6, 10), 3, 3)
-        painter.drawRoundedRect(QRectF(36, 27, 6, 10), 3, 3)
+        if expression == 'excited':
+            painter.drawEllipse(QRectF(21, 27, 8, 11))
+            painter.drawEllipse(QRectF(35, 27, 8, 11))
+        elif expression == 'thinking':
+            painter.drawRoundedRect(QRectF(22, 27, 6, 9), 3, 3)
+            painter.drawRoundedRect(QRectF(36, 29, 6, 8), 3, 3)
+        elif expression == 'recovering':
+            painter.drawEllipse(QRectF(23, 28, 5, 8))
+            painter.drawEllipse(QRectF(37, 28, 5, 8))
+        else:
+            painter.drawRoundedRect(QRectF(22, 27, 6, 10), 3, 3)
+            painter.drawRoundedRect(QRectF(36, 27, 6, 10), 3, 3)
+    if expression != 'neutral':
+        mouth = QPainterPath()
+        if expression in ('excited', 'moving'):
+            mouth.moveTo(28, 42)
+            mouth.cubicTo(31, 49, 36, 49, 39, 42)
+        elif expression == 'recovering':
+            mouth.moveTo(28, 45)
+            mouth.cubicTo(31, 40, 36, 40, 39, 45)
+        elif expression == 'thinking':
+            mouth.addEllipse(QRectF(31, 42, 4, 4))
+        elif expression == 'waiting':
+            mouth.addEllipse(QRectF(29, 41, 7, 8))
+        else:
+            mouth.moveTo(28, 42)
+            mouth.cubicTo(31, 46, 36, 46, 39, 42)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        from PyQt6.QtGui import QPen
+        painter.setPen(QPen(QColor('#383248'), 2.2))
+        painter.drawPath(mouth)
     painter.restore()
 
 
