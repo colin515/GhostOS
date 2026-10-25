@@ -222,6 +222,10 @@ class WebEngine:
             self._targets = {idx:item for idx,item in enumerate(discovered['targets'])}
             self._targets_page = self.page
             data['viewport'] = discovered['viewport']
+            try:
+                data['dialogs'] = self.page.locator('dialog,[role="dialog"],[aria-modal="true"]').evaluate_all('''els => els.filter(e => {const r=e.getBoundingClientRect(); return r.width>0 && r.height>0}).slice(0,5).map(e => (e.getAttribute('aria-label')||e.innerText||'').trim().slice(0,280))''')
+            except Exception:
+                data['dialogs'] = []
             data['targets'] = [
                 {**{k:v for k,v in item.items() if k!='dom_index'}, 'target_id':idx}
                 for idx,item in self._targets.items()]

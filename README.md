@@ -78,6 +78,24 @@ existing YouTube page and play its video” verifies navigation, then playback,
 before finishing. Playback reads state before acting so repeating Play cannot
 pause a video that is already playing. See [model setup and multi-step control](docs/model_setup.md).
 
+### Browser viewport grounding and livelier ghost animations (upcoming)
+
+Managed Chrome/Edge sessions now feed the local model a screenshot of the actual
+webpage viewport in **CSS pixels**, not a cropped screenshot of a Windows window.
+Browser clicks no longer transform those pixels into desktop coordinates.
+They use Playwright's browser mouse in the same viewport coordinate system.
+The model also receives numbered visible DOM targets, including video links,
+which can be clicked by ID with revalidated element identity and Playwright's
+built-in visibility/actionability checks. Invalid coordinates report the real
+screenshot size without sending input. The task log records the screenshot
+source, dimensions and coordinate space for troubleshooting.
+
+The floating task ghost now has richer mood-specific expressions, smoother
+motion, orbiting particles and reactive lighting. The desktop theme has
+sharper contrast and clearer interactive controls.
+
+[Implementation and open-source research](docs/browser_grounding.md).
+
 ### Verified button clicks and reliable Chrome DOM interaction (1.4.2)
 
 GhostOS now hit-tests the *actual* Windows accessibility element at a proposed mouse

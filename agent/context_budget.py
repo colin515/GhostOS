@@ -22,6 +22,7 @@ def browser_observation(raw):
         output['targets'] = data.get('targets',[])[:65]
         output['viewport'] = data.get('viewport',{})
         output['visible_video_links'] = data.get('visible_video_links',0)
+        output['dialogs'] = data.get('dialogs',[])[:3]
         return output
     except (ValueError,TypeError):
         return clip(raw,1600)

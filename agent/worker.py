@@ -169,7 +169,9 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 else:
                     frame = vision.capture()
                 controller.frame = frame
-                emit('FRAME', image=frame.base64(grid=not settings.game_mode), step=step)
+                emit('FRAME', image=frame.base64(grid=not settings.game_mode), step=step,
+                     source=frame.source, screenshot_size=list(frame.image.size),
+                     coordinate_size=list(frame.original_size),origin=list(frame.origin))
                 try:
                     ui = tree.snapshot() if not settings.game_mode and frame.source != 'browser' else []
                 except Exception as exc:
