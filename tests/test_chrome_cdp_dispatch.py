@@ -14,11 +14,11 @@ def controller():
     c.web=SimpleNamespace(page=None,native_fallback=False,execute=lambda action:'CDP-OK')
     def reject_native():
         raise AssertionError('Auto Chrome path unexpectedly switched to native')
-    c.native_browser=reject_native
+    c.native_browser=lambda:SimpleNamespace(open=lambda *a,**kw:None)
     return c
 
 
-def test_auto_browser_open_prefers_cdp_over_native():
+def test_auto_browser_open_uses_cdp_when_personal_tab_is_not_present():
     c=controller()
     assert c.browser_action(Action(kind='browser_open',
         args={'url':'https://example.com/'})) == 'CDP-OK'

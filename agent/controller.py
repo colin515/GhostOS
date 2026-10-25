@@ -232,12 +232,21 @@ class Controller:
             result = self.native_browser().open(a.get('url', ''), a.get('new_tab', kind == 'browser_new_tab'))
             self.web.native_fallback = True
             return result
-        # Auto browser actions use CDP's DOM/Playwright path first, not a
-        # one-off native tab switch that permanently disables selector actions.
-        # Use backend='native' explicitly for a personal non-debug Chrome tab.
-        # Chrome's normal profile cannot expose DevTools on current versions.
-        # Auto uses its isolated, local CDP profile for deterministic DOM clicks;
-        # backend='native' explicitly opts into the existing personal window.
+        # Preserve an already-open matching personal tab. It cannot be CDP
+        # controlled on current Chrome without launching a separate profile.
+        # New destinations and tabs prefer CDP; the personal-tab path uses live
+        # UIA mouse control, not DOM selectors.
+        if (kind == 'browser_open' and backend == 'auto' and not self.web.page
+                and not a['new_tab'] and not getattr(self.settings, 'cdp_url', '')):
+            try:
+                reused = self.native_browser().open(a['url'], reuse_only=True)
+                if reused:
+                    self.web.native_fallback = True
+                    return reused
+            except (InterruptedError, PermissionError):
+                raise
+            except Exception:
+                pass  # A failed read-only reuse check must not prevent CDP.
         if self.web.native_fallback and backend != 'cdp':
             if kind == 'browser_media':
                 from agent.browser_media import native_media

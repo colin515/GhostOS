@@ -164,7 +164,8 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                 except Exception as exc:
                     ui = []
                     emit('WARNING', message=f'Accessibility provider unavailable; using vision and keyboard navigation: {exc}')
-                if autonomous and getattr(controller.web, 'page', None) and not controller.web.native_fallback:
+                active_web = getattr(controller, 'web', None)
+                if autonomous and getattr(active_web, 'page', None) and not getattr(active_web, 'native_fallback', False):
                     try:
                         browser_state = controller.web.snapshot()
                     except Exception:
