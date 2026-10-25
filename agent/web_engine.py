@@ -218,6 +218,10 @@ class WebEngine:
             before=set(self.context.pages)
             candidate.click(timeout=6000)
             self._track_new_tabs(before)
+            try:
+                self.page.wait_for_url('**/watch?v=*',timeout=7000)
+            except Exception:
+                pass
             current=urlsplit(self.page.url)
             if current.path!='/watch' or not parse_qs(current.query).get('v'):
                 raise RuntimeError('Video click dispatched but YouTube watch page not verified')
@@ -249,7 +253,10 @@ class WebEngine:
         field.fill(query)
         field.press('Enter')
         try:
-            self.page.wait_for_load_state('domcontentloaded',timeout=7000)
+            if host=='youtube.com':
+                self.page.wait_for_url('**/results?search_query=*',timeout=7000)
+            else:
+                self.page.wait_for_load_state('domcontentloaded',timeout=7000)
         except Exception:
             pass  # modern SPAs may not navigate after search
         url=self.page.url

@@ -182,7 +182,7 @@ hotkey {keys:["ctrl","l"]}; type_text {text:"..."}; click {x:200,y:100,button:"l
 shell {script:"...",timeout:30}; wait {seconds:1.0}; open_app {name:"notepad"};
 ui_click {element_id:0}; focus {}; browser_navigate {url:"https://..."};
 browser_click {selector:"role=button[name=Submit]"}; browser_click_target {target_id:0} uses the exact current browser snapshot target ID and verifies its DOM identity;
-browser_fill {selector:"input[name=q]",value:"..."}; browser_fill_target {target_id:0,value:"..."} fills the observed textbox; browser_press_target {target_id:0,key:"Enter"} presses a key on the element; browser_search {query:"lo-fi music"} searches in the current site and verifies the result;
+browser_fill {selector:"input[name=q]",value:"..."}; browser_first_video {} clicks and verifies first real YouTube result; browser_fill_target {target_id:0,value:"..."} fills the observed textbox; browser_press_target {target_id:0,key:"Enter"} presses a key on the element; browser_search {query:"lo-fi music"} searches in the current site and verifies the result;
 
 browser_open {url:"https://www.netflix.com/",new_tab:false,backend:"auto"} reuses a matching tab or navigates directly;
 browser_new_tab {backend:"auto"} actually creates and verifies a new tab;

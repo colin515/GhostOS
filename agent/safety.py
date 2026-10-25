@@ -69,7 +69,7 @@ class WorkerSafety:
         request = uuid.uuid4().hex
         import os
         target_window = None
-        if os.name == 'nt' and action.kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click', 'game_move', 'game_key', 'game_click'):
+        if os.name == 'nt' and action.kind in ('hotkey', 'type_text', 'click', 'mouse_move', 'drag', 'scroll', 'ui_click', 'template_click', 'game_move', 'game_key', 'game_click', 'game_menu_click'):
             import ctypes
             ctypes.windll.user32.GetForegroundWindow.restype = ctypes.c_void_p
             target_window = ctypes.windll.user32.GetForegroundWindow()
