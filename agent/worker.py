@@ -7,6 +7,7 @@ import os
 import queue
 import time
 from agent.recovery import Recovery
+from agent.task_intents import browser_step_action, verified_browser_step
 
 
 def run_worker(settings, goal, recipe_path, stop, events, answers):
@@ -70,6 +71,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
             substantive_actions = 0
             completion_challenge = False
             pending_phase, media_attempted = True, False
+            direct_attempted = False
 
             def complete_phase(summary):
                 progress.complete(summary)
@@ -95,6 +97,7 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                         navigation = Navigation.parse(progress.current, settings.game_mode)
                         recovery = Recovery(progress.current, settings.game_mode)
                         substantive_actions, completion_challenge, media_attempted = 0, False, False
+                        direct_attempted = False
                         pending_phase = False
                         emit('PLAN', message=f'Step {progress.index + 1}/{len(progress.steps)}: {progress.current}')
                     prerequisite = navigation.next_action()
@@ -119,6 +122,36 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                             feedback = f'Navigation attempt {navigation.attempts}: {type(exc).__name__}: {exc}' + navigation.context()
                             emit('RECOVERY', message=feedback[:1200])
                         continue
+                    # Only a verified live browser page is eligible for a direct
+                    # DOM search or first-result operation. This prevents looping
+                    # back to YouTube's homepage on sequential requests.
+                    active_page = getattr(getattr(controller,'web',None),'page',None)
+                    if (not direct_attempted and active_page is not None
+                            and not getattr(controller.web,'native_fallback',False)
+                            and not navigation.active):
+                        direct_action = browser_step_action(progress.current,active_page.url)
+                        if direct_action:
+                            direct_attempted = True
+                            emit('ACTION',step=step+1,action=direct_action.model_dump(),deterministic=True)
+                            try:
+                                result = controller.execute(direct_action)
+                                browser_state = feedback = str(result)
+                                emit('RESULT',message=feedback[:4000])
+                                if verified_browser_step(direct_action,result):
+                                    summary = ('Searched for '+direct_action.args['query']
+                                               if direct_action.kind=='browser_search'
+                                               else 'Opened first verified video')
+                                    if complete_phase(summary):
+                                        return
+                                    pending_phase = True
+                                else:
+                                    feedback = 'DECISION_ACTION_REQUIRED. Browser operation was not verified. '+feedback[:2000]
+                            except (InterruptedError,PermissionError):
+                                raise
+                            except Exception as exc:
+                                feedback = f'{type(exc).__name__}: {exc}. Do not reopen the website; inspect DOM.'
+                                emit('RECOVERY',message=feedback[:1200])
+                            continue
                     profile = None
                     if settings.game_mode and getattr(settings,'game_profile',''):
                         from agent.game_profiles import load_profile, applies_to
@@ -291,6 +324,17 @@ def run_worker(settings, goal, recipe_path, stop, events, answers):
                     emit('THOUGHT', message=decision.summary)
                     emit('PLAN', steps=decision.plan)
                     action = decision.action
+                    current_page = getattr(getattr(controller,'web',None),'page',None)
+                    if (current_page is not None and not navigation.active and
+                            action.kind in ('browser_open','browser_navigate','browser_new_tab',
+                                            'ensure_app','open_app') and
+                            not re.search(r'\b(?:open|navigate|visit|new tab)\b',progress.current,re.I)):
+                        feedback = ('DECISION_ACTION_REQUIRED. Current page is already open at '+
+                                    str(current_page.url)[:180]+
+                                    '. Do not reopen it; use browser_search, browser_fill_target, '
+                                    'browser_click_target or browser_snapshot.')
+                        emit('RECOVERY',message='Blocked redundant browser reopening')
+                        continue
                 emit('ACTION', step=step + 1, action=action.model_dump())
                 try:
                     result = controller.execute(action)
