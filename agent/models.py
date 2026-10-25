@@ -74,6 +74,10 @@ class BrowserOpen(URL):
     new_tab: bool = False
     backend: Literal['auto', 'native', 'cdp'] = 'auto'
 
+class BrowserTarget(Args):
+    target_id: int = Field(ge=0, le=150, description='Visible browser target ID from the latest CDP snapshot')
+
+
 class BrowserTab(Args):
     backend: Literal['auto', 'native', 'cdp'] = 'auto'
 
@@ -117,14 +121,14 @@ class Template(Args):
 ARG_TYPES = {
     'mouse_move': Cursor, 'drag': Drag, 'scroll': Scroll, 'hotkey': Keys, 'type_text': Text, 'click': Click, 'shell': Shell, 'wait': Delay,
     'open_app': App, 'ensure_app': EnsureApp, 'app_list': AppQuery, 'focus_window': WindowHandle, 'ui_click': Element, 'browser_navigate': URL,
-    'browser_click': Locator, 'browser_fill': Fill, 'browser_snapshot': Empty, 'browser_media': Media,
+    'browser_click': Locator, 'browser_click_target': BrowserTarget, 'browser_fill': Fill, 'browser_snapshot': Empty, 'browser_media': Media,
     'browser_open': BrowserOpen, 'browser_new_tab': BrowserTab, 'browser_tabs': Empty, 'browser_switch_tab': TabId,
     'game_move': Move, 'game_key': GameKey, 'game_click': GameClick, 'game_action': GameAction, 'game_bind':GameBind,
     'template_click': Template, 'focus': Empty,
 }
 ActionKind = Literal[
     'mouse_move', 'drag', 'scroll', 'hotkey', 'type_text', 'click', 'shell', 'wait', 'open_app', 'ui_click', 'app_list', 'focus_window',
-    'browser_navigate', 'browser_click', 'browser_fill', 'browser_snapshot', 'browser_media',
+    'browser_navigate', 'browser_click', 'browser_click_target', 'browser_fill', 'browser_snapshot', 'browser_media',
     'browser_open', 'browser_new_tab', 'browser_tabs', 'browser_switch_tab',
     'game_move', 'game_key', 'game_click', 'game_action', 'game_bind', 'template_click', 'focus', 'ensure_app',
 ]
@@ -155,7 +159,8 @@ ACTION_HELP = '''Action kinds and args:
 hotkey {keys:["ctrl","l"]}; type_text {text:"..."}; click {x:200,y:100,button:"left"};
 shell {script:"...",timeout:30}; wait {seconds:1.0}; open_app {name:"notepad"};
 ui_click {element_id:0}; focus {}; browser_navigate {url:"https://..."};
-browser_click {selector:"role=button[name=Submit]"}; browser_fill {selector:"input[name=q]",value:"..."};
+browser_click {selector:"role=button[name=Submit]"}; browser_click_target {target_id:0} uses the exact current browser snapshot target ID and verifies its DOM identity;
+browser_fill {selector:"input[name=q]",value:"..."};
 browser_open {url:"https://www.netflix.com/",new_tab:false,backend:"auto"} reuses a matching tab or navigates directly;
 browser_new_tab {backend:"auto"} actually creates and verifies a new tab;
 browser_tabs {} lists CDP tab IDs, titles and URLs; browser_switch_tab {tab_id:0} activates a listed tab;

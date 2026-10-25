@@ -18,7 +18,10 @@ def browser_observation(raw):
         output['text'] = clip(data.get('text',''),1000)
         output['tabs'] = [{k:clip(v,180) if isinstance(v,str) else v for k,v in tab.items()}
                           for tab in data.get('tabs',[])[:10]]
-        output['controls'] = data.get('controls',[])[:25]
+        output['controls'] = data.get('controls',[])[:35]
+        output['targets'] = data.get('targets',[])[:65]
+        output['viewport'] = data.get('viewport',{})
+        output['visible_video_links'] = data.get('visible_video_links',0)
         return output
     except (ValueError,TypeError):
         return clip(raw,1600)
@@ -48,7 +51,7 @@ def pack_prompt(goal, history, observation, browser, feedback, screenshot_size, 
             desktop.pop()
     if size() > budget and isinstance(data['browser'],dict):
         data['browser']['text'] = clip(data['browser'].get('text',''),300)
-        for key in ('controls','tabs'):
+        for key in ('targets','controls','tabs'):
             nodes = data['browser'].get(key,[])
             while len(nodes) > 1 and size() > budget:
                 nodes.pop()

@@ -17,11 +17,13 @@ class Frame:
     window_bounds: tuple[int, int, int, int] | None = None
     captured_at: float = field(default_factory=time.monotonic)
     title: str = ''
+    source: str = 'desktop'  # desktop = physical Win32 pixels; browser = CSS viewport pixels
 
     def physical(self, x, y):
         w, h = self.image.size
         if not 0 <= x < w or not 0 <= y < h:
-            raise ValueError('Coordinate outside latest screenshot')
+            raise ValueError(f'Coordinate ({x}, {y}) outside latest {w}x{h} {self.source} screenshot. '
+                             'Do not repeat this point; use an exact control/target ID or a visible in-bounds coordinate.')
         return (self.origin[0] + min(self.original_size[0] - 1, round(x * self.original_size[0] / w)),
                 self.origin[1] + min(self.original_size[1] - 1, round(y * self.original_size[1] / h)))
 
