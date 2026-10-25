@@ -29,7 +29,7 @@ class Controller:
         browser_frame = getattr(getattr(self, 'frame', None), 'source', 'desktop') == 'browser'
         # A blind screen-click or camera movement is never a substitute for a
         # coordinate-grounded game menu button.
-        menu_goal = (self.settings.game_mode and
+        menu_goal = (getattr(self.settings, 'game_mode', False) and
                      any(word in getattr(self,'original_goal','').lower()
                          for word in ('new game','easy mode','main menu')))
         if menu_goal and kind in ('click','drag','game_click','game_move','game_action'):
