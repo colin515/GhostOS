@@ -116,6 +116,17 @@ class WindowsUseBrain:
         avoid = {'click','ui_click','drag','mouse_move','template_click'}
         return [tool for tool in tools if tool.name not in avoid]
 
+    @staticmethod
+    def filter_navigation_tools(tools,goal,frame):
+        """Hide opening/navigation tools when executing an already-open webpage task."""
+        import re
+        if getattr(frame,'source','desktop')!='browser':
+            return tools
+        if re.search(r'\\b(?:open|navigate|visit|go to|new tab|switch tab)\\b',goal,re.I):
+            return tools
+        avoid={'browser_open','browser_navigate','browser_new_tab','ensure_app','open_app'}
+        return [t for t in tools if t.name not in avoid]
+
     def next(self, goal, frame, tree, browser_state='', feedback='', emit=None):
         from ghostos_vendor.windows_use.messages import SystemMessage, ImageMessage
         from ghostos_vendor.windows_use.providers.events import LLMEventType
@@ -133,7 +144,7 @@ class WindowsUseBrain:
         # UIA click IDs always belong to GhostOS's current live tree, never SDK indices.
         desktop['targets'] = (frame.tree_for_model(tree) if getattr(frame, 'source', 'desktop') != 'browser' else [])
         from agent.context_budget import pack_prompt
-        offered_tools = self.available_tools(self.tools, frame, browser_state)
+        offered_tools = self.filter_navigation_tools(self.available_tools(self.tools, frame, browser_state),goal,frame)
         tool_chars = len(json.dumps([tool.json_schema for tool in offered_tools])) if self.tools_supported else 0
         prompt = pack_prompt(goal,self.context.text(),desktop,browser_state,feedback + '\n' + nudge,
                              frame.image.size,self.settings,len(SYSTEM),tool_chars)

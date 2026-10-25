@@ -93,7 +93,7 @@ class WebEngine:
 
     # Unlike Windows screenshots, Playwright screenshots and mouse actions share
     # CSS viewport coordinates. Never convert these via the OS window rectangle.
-    ACTIONABLE = 'a[href],button,input,select,textarea,[role="button"],[role="link"],[role="tab"],video'
+    ACTIONABLE = 'a[href],button,input,select,textarea,[role="button"],[role="link"],[role="tab"],[role="textbox"],[role="searchbox"],[role="radio"],[role="checkbox"],[contenteditable="true"],video'
 
     def capture_frame(self):
         if not self.page or self.native_fallback:
@@ -179,6 +179,78 @@ class WebEngine:
         self._track_new_tabs(before)
         return self.snapshot(click_dispatched=True, clicked_target_id=target_id)
 
+    def target_locator(self, target_id):
+        if not self.page or self.native_fallback or self._targets_page is not self.page:
+            raise ValueError('Stale browser targets: inspect browser_snapshot again')
+        expected = self._targets.get(target_id)
+        if expected is None:
+            raise ValueError('No such visible browser target ID')
+        target = self.page.locator(self.ACTIONABLE).nth(expected['dom_index'])
+        if target.count() != 1:
+            raise ValueError('Browser element disappeared')
+        actual = target.evaluate("""e => ({
+            tag:e.tagName,href:e.getAttribute('href')||'',
+            id:e.id||'',name:e.getAttribute('aria-label')||'',
+            text:(e.innerText||e.value||'').trim().slice(0,90)
+        })""")
+        if actual['tag'] != expected['tag'] or actual['href'] != expected['href']:
+            raise ValueError('Browser element changed since observation')
+        if not expected['href'] and actual['id'] != expected['id']:
+            raise ValueError('Browser target moved; inspect new snapshot')
+        return target,expected
+
+    def search(self, query):
+        """Fill the live search field in the current browser tab, without reopening it."""
+        from urllib.parse import urlsplit,parse_qs
+        if not self.page or self.native_fallback:
+            raise RuntimeError('Search needs an attached CDP browser; no page navigation was attempted')
+        host=(urlsplit(self.page.url).hostname or '').removeprefix('www.').lower()
+        if host == 'youtube.com':
+            selector='input[name="search_query"]'
+            param='search_query'
+        elif host == 'google.com':
+            selector='textarea[name="q"],input[name="q"]'
+            param='q'
+        else:
+            selector='input[type="search"],[role="searchbox"]'
+            param=None
+        field=self.page.locator(selector)
+        count=field.count()
+        if count != 1:
+            raise ValueError(f'Search field selector matched {count} controls on {host}. '
+                             'Use browser_fill_target with an exact input target ID.')
+        before=self.page.url
+        field.fill(query)
+        field.press('Enter')
+        try:
+            self.page.wait_for_load_state('domcontentloaded',timeout=7000)
+        except Exception:
+            pass  # modern SPAs may not navigate after search
+        url=self.page.url
+        parsed=parse_qs(urlsplit(url).query)
+        matched=bool(param and query in parsed.get(param,[]))
+        if host == 'youtube.com' and (urlsplit(url).path != '/results' or not matched):
+            raise RuntimeError('YouTube search was not verified: '+url[:200])
+        if host == 'google.com' and not matched:
+            raise RuntimeError('Google search was not verified: '+url[:200])
+        if param is None and url == before:
+            raise RuntimeError('Search did not visibly navigate; inspect the updated browser page')
+        return self.snapshot(verified=True,search_query=query,search_url=url,action='browser_search')
+
+    def fill_target(self, target_id, value):
+        target,metadata=self.target_locator(target_id)
+        if metadata['tag'] not in ('INPUT','TEXTAREA') and metadata.get('role') not in ('textbox','searchbox'):
+            raise ValueError('The observed target is not a text field')
+        target.fill(value)
+        return self.snapshot(verified=True,filled_target_id=target_id,
+                             message='Input filled; form was not submitted')
+
+    def press_target(self,target_id,key):
+        target,_=self.target_locator(target_id)
+        target.press(key)
+        return self.snapshot(pressed_target_id=target_id,
+                             message='Key dispatched; verify any submitted result')
+
     def tabs(self):
         output = []
         for i, page in enumerate(self.context.pages[:100]):
@@ -205,10 +277,10 @@ class WebEngine:
                     const x=Math.max(0,Math.min(w-1,r.left+r.width/2));
                     const y=Math.max(0,Math.min(h-1,r.top+r.height/2));
                     if(r.right<0||r.bottom<0||r.left>=w||r.top>=h)continue;
-                    const name=(e.getAttribute('aria-label')||e.innerText||e.value||'').trim().slice(0,90);
+                    const name=(e.getAttribute('aria-label')||e.getAttribute('placeholder')||e.innerText||e.value||'').trim().slice(0,90);
                     targets.push({dom_index:i,tag:e.tagName,href:e.getAttribute('href')||'',
-                      id:e.id||'',name,
-                      x:Math.round(x),y:Math.round(y)});
+                      id:e.id||'',name,role:e.getAttribute('role')||'',
+                      input_type:e.getAttribute('type')||'',x:Math.round(x),y:Math.round(y)});
                 }
                 // Give the model actual video links first, then explicit controls.
                 // Keep the underlying dom_index so clicks remain identity-checked.
@@ -273,6 +345,12 @@ class WebEngine:
             self.page.bring_to_front()
         elif action.kind == 'browser_click_target':
             return self.click_target(a['target_id'])
+        elif action.kind == 'browser_search':
+            return self.search(a['query'])
+        elif action.kind == 'browser_fill_target':
+            return self.fill_target(a['target_id'],a['value'])
+        elif action.kind == 'browser_press_target':
+            return self.press_target(a['target_id'],a['key'])
         elif action.kind == 'browser_fill':
             target = self.page.locator(a['selector'])
             count = target.count()
