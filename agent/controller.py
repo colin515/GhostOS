@@ -107,14 +107,25 @@ class Controller:
                 source = 'vision'
             else:
                 (x,y),source = resolve_point(self.frame,a,self.tree,self.vision,self.settings.game_mode)
+            snapped_id = None
+            if kind == 'click' and source.startswith('vision-') and not self.settings.game_mode:
+                finder = getattr(self.tree, 'nearest_click_target', None)
+                match = finder(x, y) if callable(finder) else None
+                if match:
+                    from agent.targeting import verify_patch
+                    snapped_id, x, y = match
+                    verify_patch(self.frame, self.vision.capture(), (x, y))
+                    source = 'accessibility-snap'
             sx,sy = self.frame.model_point(x,y)
             self.safety.events.put({'kind':'TARGET','source':source,'physical':[x,y], 'screenshot':[sx,sy],
                                     'window':self.frame.window,'label':a.get('target','')},timeout=0.2)
             self.safety.events.put({'kind':'FRAME','image':self.frame.annotated(sx,sy,a.get('target') or kind).base64()},timeout=0.2)
             mouse = self.mouse_driver()
-            if source == 'accessibility-label':
+            if source in ('accessibility-label', 'accessibility-snap'):
                 from agent.targeting import verify_live_center
-                mouse.before_press = lambda: verify_live_center((x,y),self.tree.find(a['target']))
+                mouse.before_press = (lambda: (verify_window(self.frame),
+                    verify_live_center((x,y), self.tree.center(snapped_id) if snapped_id is not None
+                                       else self.tree.find(a['target']))))
             else:
                 mouse.before_press = lambda: verify_window(self.frame)
             if kind == 'mouse_move':

@@ -13,6 +13,9 @@ Use the goal as the only authority. Prefer native app launch, direct background 
 and browser_navigate/browser_fill/browser_click for precise DOM control. For OS UI use ui_click
 or smooth mouse actions. Keyboard shortcuts are a fallback, never use Windows Search to launch apps.
 Prefer ui_click using a current id from desktop.targets (or the legacy tree), or an exact unique target label.
+When a control has accessible bounds, click its CENTRE, not its lower edge or text baseline.
+If only a visual button exists, use its visual bounding-box centre in the supplied screenshot,
+not coordinates from your own screen resolution or from a previous screenshot.
 All UI bounds and x/y are pixels in the resized screenshot, never physical desktop pixels.
 For Qwen-style 0..1000 coordinates explicitly set coordinate_space:"normalized_1000"; never mix coordinate spaces.
 The screenshot is cropped to the active target window. Do not add its desktop position or DPI scaling.
