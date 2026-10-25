@@ -4,7 +4,7 @@ A free, open-source Windows 10/11 local OS agent. GhostOS combines a PyQt6 deskt
 a phone-friendly FastAPI dashboard, local Ollama vision inference, Windows UI
 Automation, Playwright, and bounded game input.
 
-**Status:** version 1.4.1. Automated tests and Windows build, installation and
+**Status:** version 1.4.2. Automated tests and Windows build, installation and
 uninstallation smoke checks pass. Native desktop workflows, hardware acceleration
 and game compatibility still need validation on representative PCs. A local vision model can make mistakes. Start with Tier 1
 and simple goals. No subscriptions, paid tiers or hosted inference service.
@@ -12,7 +12,7 @@ and simple goals. No subscriptions, paid tiers or hosted inference service.
 ## Download and install
 
 1. Open [the latest release](https://github.com/colin515/GhostOS/releases/latest).
-2. Under **Assets**, download **GhostOS_Installer_v1.4.1.exe** and run it.
+2. Under **Assets**, download **GhostOS_Installer_v1.4.2.exe** and run it.
 3. Open GhostOS from the Start Menu. The first-run wizard guides you through
    installing Ollama and downloading a local vision model.
 
@@ -77,6 +77,25 @@ Explicit sequential requests keep separate pending steps. For example, “open t
 existing YouTube page and play its video” verifies navigation, then playback,
 before finishing. Playback reads state before acting so repeating Play cannot
 pause a video that is already playing. See [model setup and multi-step control](docs/model_setup.md).
+
+### Verified button clicks and reliable Chrome DOM interaction (1.4.2)
+
+GhostOS now hit-tests the *actual* Windows accessibility element at a proposed mouse
+position rather than assuming the rectangle centre is clickable. It checks the
+element again before pressing, tries safe alternative points inside the intended
+control when the centre is covered, and refuses to click an unrelated control.
+The accessibility scanner prioritises actionable items even in deep window
+trees, instead of exhausting its 120-target limit on non-clickable containers.
+
+Browser automation prefers Playwright/CDP for new managed Chrome/Edge sessions
+while preserving reuse of already-open personal tabs. DOM click and fill
+selectors must match one unique element; uncertain submissions are not blindly
+replayed. A personal browser window without CDP remains limited to physical
+UIA/mouse/keyboard control.
+
+The automated Linux and Windows tests cover these changes; real hardware,
+third-party applications and high-DPI/multi-monitor setups still require
+hands-on verification. See [v1.4.2 release notes](docs/release_1_4_2.md).
 
 ### Precision control and animated ghost (1.4.1)
 
@@ -240,11 +259,11 @@ and verification. Other goals use observe → decide → authorize → execute �
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe build_tools/build.py
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.4.1 build_tools/GhostOS_installer.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.4.2 build_tools/GhostOS_installer.iss
 ```
 
 A one-folder PyInstaller distribution contains `GhostOS.exe` and its runtime.
-Inno Setup wraps it as `GhostOS_Installer_v1.4.1.exe`, installs per user without
+Inno Setup wraps it as `GhostOS_Installer_v1.4.2.exe`, installs per user without
 admin rights, adds Start Menu shortcuts and provides an uninstaller. The app has
 an asInvoker, Per-Monitor-V2 manifest. **Installers are unsigned** until a
 maintainer adds their own trusted Authenticode signing pipeline; SmartScreen may
@@ -252,7 +271,7 @@ show a warning. This project does not promise otherwise.
 
 Update `VERSION` and push directly to `main`. The release workflow automatically
 builds and publishes that version, creating its matching tag at the exact build
-commit. Pushing a matching version tag (`v1.4.1`) or manually running **Windows
+commit. Pushing a matching version tag (`v1.4.2`) or manually running **Windows
 release** from `main` also works. Use a new version for every published release;
 published assets are not silently replaced.
 
