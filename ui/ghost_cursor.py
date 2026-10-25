@@ -19,6 +19,8 @@ class GhostCursor(QWidget):
                          Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowTransparentForInput |
                          Qt.WindowType.WindowDoesNotAcceptFocus)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setStyleSheet('GhostCursor { background: transparent; border: none; }')
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setFixedSize(46, 48)

@@ -14,13 +14,17 @@ class WinMouse:
         # Keep prototypes private: PyDirectInput uses its own POINT structure on
         # ctypes.windll.user32. Mutating that shared function breaks its failsafe.
         self.user = ctypes.WinDLL('user32',use_last_error=True)
-        self.user.SetCursorPos.argtypes = (ctypes.c_int, ctypes.c_int)
-        self.user.GetCursorPos.argtypes = (ctypes.POINTER(wintypes.POINT),)
+        # UI Automation and screenshot target locations are *physical* pixels.
+        # These APIs avoid logical-coordinate DPI virtualization at 125–200% scaling.
+        self.user.SetPhysicalCursorPos.argtypes = (ctypes.c_int, ctypes.c_int)
+        self.user.SetPhysicalCursorPos.restype = wintypes.BOOL
+        self.user.GetPhysicalCursorPos.argtypes = (ctypes.POINTER(wintypes.POINT),)
+        self.user.GetPhysicalCursorPos.restype = wintypes.BOOL
 
     def position(self):
         point = wintypes.POINT()
-        if not self.user.GetCursorPos(ctypes.byref(point)):
-            raise OSError('GetCursorPos failed')
+        if not self.user.GetPhysicalCursorPos(ctypes.byref(point)):
+            raise OSError('GetPhysicalCursorPos failed')
         return point.x, point.y
 
     def bounds(self):
@@ -35,8 +39,8 @@ class WinMouse:
             raise RuntimeError('Mouse target is covered by GhostOS controls; choose an unobscured target')
 
     def move(self, x, y):
-        if not self.user.SetCursorPos(x, y):
-            raise OSError('SetCursorPos rejected input; check the interactive desktop')
+        if not self.user.SetPhysicalCursorPos(x, y):
+            raise OSError('SetPhysicalCursorPos rejected input; check the interactive desktop')
 
     def input(self, flags, data=0):
         from agent.gaming_engine import INPUT, MOUSEINPUT, send_input
