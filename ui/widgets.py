@@ -5,7 +5,7 @@ from PyQt6.QtGui import QColor, QPainter, QPainterPath, QLinearGradient, QIcon, 
 from PyQt6.QtWidgets import QWidget
 
 
-def draw_ghost(painter, rect):
+def draw_ghost(painter, rect, blink=False):
     painter.save()
     painter.translate(rect.x(), rect.y())
     painter.scale(rect.width() / 64, rect.height() / 64)
@@ -28,8 +28,14 @@ def draw_ghost(painter, rect):
     painter.fillPath(shape, gradient)
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QColor('#252334'))
-    painter.drawRoundedRect(QRectF(22, 27, 6, 10), 3, 3)
-    painter.drawRoundedRect(QRectF(36, 27, 6, 10), 3, 3)
+    if blink:
+        from PyQt6.QtGui import QPen
+        painter.setPen(QPen(QColor('#252334'), 3))
+        painter.drawLine(22, 32, 28, 32)
+        painter.drawLine(36, 32, 42, 32)
+    else:
+        painter.drawRoundedRect(QRectF(22, 27, 6, 10), 3, 3)
+        painter.drawRoundedRect(QRectF(36, 27, 6, 10), 3, 3)
     painter.restore()
 
 

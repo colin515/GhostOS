@@ -45,6 +45,8 @@ class MainWindow(QMainWindow):
         self.runtime, self.cursor, self.frame_id = runtime, 0, 0
         from ui.control_panel import ControlPanel
         self.panel = ControlPanel(self.stop, self.browser_help)
+        from ui.ghost_cursor import GhostCursor
+        self.ghost_cursor = GhostCursor()
         self.tray = None
         if QSystemTrayIcon.isSystemTrayAvailable():
             self.tray = QSystemTrayIcon(ghost_icon(), self)
@@ -195,7 +197,11 @@ class MainWindow(QMainWindow):
         self.voice_status.setText('Ready for your next command · press Speak or type below')
 
     def browser_help(self):
-        self.panel.label.setText('Optional CDP setup: choose Chrome in AI settings. GhostOS creates a separate local browser profile automatically. If your policy blocks it, see docs/browser_control.md. Mouse and keyboard continue to work.')
+        explanation = ('Optional CDP setup: choose Chrome in AI settings. GhostOS creates a separate '
+                       'local browser profile automatically. If your policy blocks it, see '
+                       'docs/browser_control.md. Mouse and keyboard continue to work.')
+        self.panel.label.setText(explanation)
+        self.panel.setToolTip(explanation)
         self.panel.help_button.hide()
 
     def toggle_narration(self, checked):
@@ -258,12 +264,19 @@ class MainWindow(QMainWindow):
                 self.append_chat('GhostOS\n' + event_text(event) + '\n')
             if kind in ('INFERENCE', 'RECOVERY'):
                 self.status.setText('●  ' + event_text(event)[:85])
+            if kind in ('INFERENCE', 'PLAN', 'RECOVERY', 'ERROR', 'ACTION', 'EXECUTING',
+                        'MOUSE', 'TARGET', 'APPROVAL', 'VOICE_APPROVAL', 'AUDIO_LEVEL'):
+                self.panel.set_activity(kind)
+            if kind == 'MOUSE':
+                self.ghost_cursor.note_mouse(event)
             if kind == 'FINISHED':
                 finished = True
+                self.ghost_cursor.hide()
                 self.panel.hide()
                 self.status.setText('●  ' + event_text(event))
             if kind == 'BROWSER_FALLBACK':
                 self.panel.label.setText(event['message'])
+                self.panel.setToolTip(event['message'])
                 self.panel.help_button.show()
             if kind == 'VOICE_APPROVAL':
                 self.panel.label.setText(event['message'])
@@ -385,6 +398,7 @@ class MainWindow(QMainWindow):
             return
         self.timer.stop()
         self.panel.close()
+        self.ghost_cursor.close()
         if self.tray:
             self.tray.hide()
         if self.approval_dialog:
